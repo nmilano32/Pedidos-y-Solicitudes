@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mis Finanzas</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <h1>💰 Mis Finanzas</h1>
+  <div class="top-tools">
+    <select id="currency" aria-label="Moneda"></select>
+    <button class="btn ghost" data-action="export">Exportar</button>
+    <label class="btn ghost">Importar<input id="import" type="file" accept="application/json" hidden></label>
+  </div>
+</header>
+<nav id="tabs" class="tabs" role="tablist"></nav>
+<main id="view"></main>
+
+<dialog id="dlg">
+  <form method="dialog" id="dlg-form">
+    <h2 id="dlg-title"></h2>
+    <div id="dlg-fields"></div>
+    <div class="dlg-actions">
+      <button type="button" class="btn ghost" id="dlg-cancel">Cancelar</button>
+      <button type="submit" class="btn primary">Guardar</button>
+    </div>
+  </form>
+</dialog>
+<script src="app.js"></script>
+</body>
+</html>
