@@ -4,15 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mis Finanzas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <header class="top">
-  <h1>💰 Mis Finanzas</h1>
+  <h1>Mis Finanzas</h1>
   <div class="top-tools">
+    <span id="store-chip" class="chip" role="status">Conectando…</span>
     <select id="currency" aria-label="Moneda"></select>
-    <button class="btn ghost" data-action="export">Exportar</button>
-    <label class="btn ghost">Importar<input id="import" type="file" accept="application/json" hidden></label>
+    <button class="btn ghost" data-action="export">Respaldo</button>
   </div>
 </header>
 <nav id="tabs" class="tabs" role="tablist"></nav>
@@ -22,12 +25,31 @@
   <form method="dialog" id="dlg-form">
     <h2 id="dlg-title"></h2>
     <div id="dlg-fields"></div>
+    <p id="dlg-note" class="note" role="status"></p>
     <div class="dlg-actions">
       <button type="button" class="btn ghost" id="dlg-cancel">Cancelar</button>
       <button type="submit" class="btn primary">Guardar</button>
     </div>
   </form>
 </dialog>
+<dialog id="cfm">
+  <h2>Confirmar</h2>
+  <p id="cfm-msg"></p>
+  <div class="dlg-actions"><button class="btn ghost" id="cfm-no">Cancelar</button><button class="btn primary" id="cfm-yes">Aceptar</button></div>
+</dialog>
+<dialog id="exp">
+  <h2>Respaldo de datos</h2>
+  <label class="field"><span>Tus datos (copialos y guardalos en un archivo de texto)</span><textarea id="exp-text" readonly></textarea></label>
+  <label class="field"><span>Para restaurar, pegá un respaldo acá o elegí un archivo. Se suma a lo que ya tenés.</span><textarea id="imp-text" placeholder="Pegá el respaldo…"></textarea></label>
+  <input id="import" type="file" accept="application/json,.json" aria-label="Elegir archivo de respaldo">
+  <p class="muted" id="exp-msg" role="status"></p>
+  <div class="dlg-actions">
+    <button class="btn ghost" data-action="close-export">Cerrar</button>
+    <button class="btn" data-action="copy-export">Copiar respaldo</button>
+    <button class="btn primary" data-action="do-import">Importar</button>
+  </div>
+</dialog>
+<div id="toast" class="toast" role="status" hidden></div>
 <script src="app.js"></script>
 </body>
 </html>
