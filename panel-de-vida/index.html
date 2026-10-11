@@ -282,7 +282,7 @@ main{display:flex;flex-direction:column;gap:16px}
       </div>
     </section>
   </main>
-  <p class="foot"><button class="btn sm" data-act="perm-manage">Permisos de conexiones</button> <button class="btn sm" data-act="diag">Revisar conexiones</button></p>
+  <p class="foot"><button class="btn sm" data-act="perm-manage">Permisos de conexiones</button> <button class="btn sm" data-act="perm-all">Activar todas las conexiones</button> <button class="btn sm" data-act="diag">Revisar conexiones</button></p>
   <pre class="diag" id="diag" hidden></pre>
 </div>
 
@@ -635,6 +635,11 @@ document.addEventListener('click',function(e){
   if(a==='wx-reload')return loadWeather();
   if(a==='perm-manage'){getPerm().then(function(pp){if(!pp)throw 0;return pp.manage();}).catch(function(){toast('Abrí el menú Permisos de esta página y activá Gmail.');});return;}
   if(a==='diag')return diagRun();
+  if(a==='perm-all'){
+    getPerm().then(function(pp){if(!pp)throw {code:'unavailable'};return pp.request();}).then(function(r){
+      toast('Permisos: '+Object.keys(r).filter(function(k){return k.indexOf('mcp:')===0;}).map(function(k){return k.slice(4)+' '+r[k];}).join(' · '));
+      diagRun();loadWeather();}).catch(function(e){toast('No se pudieron pedir los permisos'+errTxt(e));});
+    return;}
   if(a==='perm-ask'){var sv=b.dataset.srv;ensureMcp(sv).then(function(st){if(st==='denied'||st==='unavailable'||st==='unknown'){toast('No se pudo activar. Probá con Permisos de conexiones.');return;}if(sv==='AccuWeather')loadWeather();});return;}
   if(a==='gm-scan')return scanGmail();
   if(a==='focus-start'){x=find('tasks',id);if(x){fo={end:Date.now()+25*60000,title:x.title};render();}return;}
