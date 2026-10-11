@@ -23,8 +23,8 @@
   --c-task:#E6EEEB;--c-sub:#7FAEE0;--c-bill:#E0B34F;--c-card:#4FC3A8;--c-event:#E58BAA;color-scheme:dark}
 
 *{box-sizing:border-box}
-body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.45;padding-inline:16px;padding-block:20px 64px}
-.wrap{max-width:1180px;margin-inline:auto}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:16px;line-height:1.5;padding-inline:16px;padding-block:20px 64px}
+.wrap{max-width:820px;margin-inline:auto}
 button{font-family:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
@@ -143,6 +143,34 @@ dialog::backdrop{background:rgba(8,16,14,.6)}
 .mhint{margin:0;font-size:12.5px;color:var(--muted)}
 
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:14px;z-index:20;max-width:calc(100% - 32px)}
+
+.top{align-items:flex-start}
+.tabs{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;display:flex;gap:6px;overflow-x:auto;padding-block:8px;margin-bottom:14px;background:var(--bg)}
+.tab{flex:none;display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:9px 16px;font:600 14px var(--f-body);cursor:pointer;color:var(--muted)}
+.tab[aria-selected="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.tab.sm{padding:6px 12px;font-size:13px}
+.bdg{min-width:20px;padding:2px 6px;border-radius:999px;background:var(--surface2);color:var(--fg);font:500 11px/1.3 var(--f-mono);text-align:center}
+.bdg:empty{display:none}
+.bdg.hot{background:var(--bad);color:#fff}
+.tab[aria-selected="true"] .bdg{background:color-mix(in srgb,var(--bg) 25%,transparent);color:var(--bg)}
+.subtabs{display:flex;gap:6px;overflow-x:auto;margin-bottom:14px}
+main{display:flex;flex-direction:column;gap:16px}
+.view{display:flex;flex-direction:column;gap:16px}
+.tstats{display:flex;flex-wrap:wrap;gap:8px 32px;padding-inline:2px}
+.focus{background:var(--accent-soft);border-radius:12px;padding:22px}
+.focus .eyebrow{margin-bottom:10px}
+.focus .ft{font:700 clamp(22px,4.5vw,30px)/1.15 var(--f-display);letter-spacing:-.01em;margin:0 0 6px;overflow-wrap:anywhere}
+.focus .fmeta{margin:0 0 16px;color:var(--muted);font-size:15px}
+.focus .factions{display:flex;flex-wrap:wrap;gap:10px}
+.focus .btn{padding:11px 18px;font-size:15px}
+.focus .fnext{margin:14px 0 0;font-size:13.5px;color:var(--muted)}
+.focus.run .timer{font:500 clamp(40px,10vw,64px)/1 var(--f-mono);font-variant-numeric:tabular-nums;margin:6px 0 16px}
+.hbig{display:flex;flex-wrap:wrap;gap:10px}
+.hbig button{display:inline-flex;align-items:center;gap:10px;border:1.5px solid var(--line);background:var(--surface);border-radius:10px;padding:12px 16px;font:600 15px var(--f-body);cursor:pointer}
+.hbig button.on{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.row{padding-block:13px}
+.btn{padding:9px 14px;font-size:14px}
+.btn.sm{padding:7px 12px;font-size:13px}
 @media (prefers-reduced-motion:no-preference){.btn,.check,.dot{transition:background .15s,border-color .15s}}
 </style>
 
@@ -152,25 +180,45 @@ dialog::backdrop{background:rgba(8,16,14,.6)}
       <p class="eyebrow">Panel de vida</p>
       <h1 id="hello">Hola</h1>
       <p class="dateline" id="dateline"></p>
-      <div class="wx" id="wx"></div>
     </div>
-    <div class="tstats" id="tstats"></div>
+    <div class="wx" id="wx"></div>
   </header>
 
-  <nav class="nav" id="nav" aria-label="Secciones">
-    <button data-go="hoy">Hoy</button><button data-go="tareas">Tareas</button><button data-go="habitos">Hábitos</button><button data-go="finanzas">Finanzas</button><button data-go="notas">Notas</button>
+  <nav class="tabs" id="tabs" role="tablist" aria-label="Temas">
+    <button class="tab" role="tab" data-tab="hoy">Hoy<span class="bdg" id="b-hoy"></span></button>
+    <button class="tab" role="tab" data-tab="agenda">Agenda<span class="bdg" id="b-agenda"></span></button>
+    <button class="tab" role="tab" data-tab="tareas">Tareas<span class="bdg" id="b-tareas"></span></button>
+    <button class="tab" role="tab" data-tab="habitos">Hábitos<span class="bdg" id="b-habitos"></span></button>
+    <button class="tab" role="tab" data-tab="finanzas">Finanzas<span class="bdg" id="b-finanzas"></span></button>
+    <button class="tab" role="tab" data-tab="notas">Notas</button>
   </nav>
 
   <div id="banner"></div>
 
-  <div class="cols">
-    <div class="col">
-      <section class="panel" id="hoy">
-        <div class="ph"><h2>Hoy y los próximos 7 días</h2><div class="calstate" id="calstate"></div></div>
-        <ul class="list" id="agenda"></ul>
-      </section>
+  <main>
+    <section class="view" id="v-hoy">
+      <div class="tstats" id="tstats"></div>
+      <div id="focus"></div>
+      <div class="panel">
+        <div class="ph"><h2>Después, hoy</h2><button class="btn sm" data-tab-go="agenda">Ver la semana</button></div>
+        <ul class="list" id="todaylist"></ul>
+      </div>
+      <div class="panel">
+        <div class="ph"><h2>Hábitos de hoy</h2><button class="btn sm" data-tab-go="habitos">Ver todos</button></div>
+        <div id="todayhabits"></div>
+      </div>
+    </section>
 
-      <section class="panel" id="tareas">
+    <section class="view" id="v-agenda" hidden>
+      <div class="panel">
+        <div class="ph"><h2>Agenda de la semana</h2><div class="calstate" id="calstate"></div></div>
+        <p class="sub">Eventos de Google Calendar, tareas con fecha, vencimientos y cobros de los próximos 7 días, día por día.</p>
+        <ul class="list" id="agenda"></ul>
+      </div>
+    </section>
+
+    <section class="view" id="v-tareas" hidden>
+      <div class="panel">
         <div class="ph"><h2>Tareas</h2></div>
         <form class="quick" id="taskform">
           <input type="text" id="task-title" placeholder="Nueva tarea, Enter para agregar" autocomplete="off" aria-label="Nueva tarea">
@@ -178,14 +226,49 @@ dialog::backdrop{background:rgba(8,16,14,.6)}
           <button class="btn primary" type="submit">Agregar</button>
         </form>
         <ul class="list" id="tasklist"></ul>
-      </section>
+      </div>
+    </section>
 
-      <section class="panel" id="habitos">
+    <section class="view" id="v-habitos" hidden>
+      <div class="panel">
         <div class="ph"><h2>Hábitos</h2><button class="btn sm" data-act="add" data-col="habits">Nuevo hábito</button></div>
+        <p class="sub">Tocá el círculo de cada día para marcarlo. El de hoy tiene borde marcado.</p>
         <div id="habitlist"></div>
-      </section>
+      </div>
+    </section>
 
-      <section class="panel" id="notas">
+    <section class="view" id="v-finanzas" hidden>
+      <div class="subtabs" id="subtabs" role="tablist" aria-label="Finanzas">
+        <button class="tab sm" role="tab" data-sub="resumen">Resumen</button>
+        <button class="tab sm" role="tab" data-sub="tarjeta">Tarjeta<span class="bdg" id="sb-tarjeta"></span></button>
+        <button class="tab sm" role="tab" data-sub="subs">Suscripciones</button>
+        <button class="tab sm" role="tab" data-sub="servicios">Servicios<span class="bdg" id="sb-servicios"></span></button>
+        <button class="tab sm" role="tab" data-sub="gmail">Desde Gmail<span class="bdg" id="sb-gmail"></span></button>
+      </div>
+      <div class="panel" data-subview="resumen">
+        <div class="ph"><h2>Resumen del mes</h2></div>
+        <div id="finsummary"></div>
+      </div>
+      <div class="panel" data-subview="tarjeta" hidden>
+        <div class="ph"><h2>Resumen de tarjeta de crédito</h2><button class="btn sm" data-act="add" data-col="statements">Cargar resumen</button></div>
+        <div id="stmts"></div>
+      </div>
+      <div class="panel" data-subview="subs" hidden>
+        <div class="ph"><h2>Suscripciones</h2><button class="btn sm" data-act="add" data-col="subs">Agregar</button></div>
+        <ul class="list" id="sublist"></ul>
+      </div>
+      <div class="panel" data-subview="servicios" hidden>
+        <div class="ph"><h2>Servicios</h2><button class="btn sm" data-act="add" data-col="bills">Agregar</button></div>
+        <ul class="list" id="billlist"></ul>
+      </div>
+      <div class="panel" data-subview="gmail" hidden>
+        <div class="ph"><h2>Vencimientos en tus mails</h2><div class="calstate" id="gmstate"></div></div>
+        <div id="gmailbox"></div>
+      </div>
+    </section>
+
+    <section class="view" id="v-notas" hidden>
+      <div class="panel">
         <div class="ph"><h2>Notas rápidas</h2></div>
         <form class="quick" id="noteform">
           <textarea id="note-text" rows="2" placeholder="Una idea o algo para no olvidar" aria-label="Nueva nota"></textarea>
@@ -193,32 +276,9 @@ dialog::backdrop{background:rgba(8,16,14,.6)}
           <button class="btn primary" type="submit">Guardar nota</button>
         </form>
         <ul class="list" id="notelist"></ul>
-      </section>
-    </div>
-
-    <div class="col">
-      <section class="panel" id="finanzas">
-        <div class="ph"><h2>Finanzas del mes</h2><div class="calstate" id="gmstate"></div></div>
-        <div id="gmailbox"></div>
-        <div id="finsummary"></div>
-      </section>
-
-      <section class="panel" id="tarjetas">
-        <div class="ph"><h2>Resumen de tarjeta de crédito</h2><button class="btn sm" data-act="add" data-col="statements">Cargar resumen</button></div>
-        <div id="stmts"></div>
-      </section>
-
-      <section class="panel" id="subs">
-        <div class="ph"><h2>Suscripciones</h2><button class="btn sm" data-act="add" data-col="subs">Agregar</button></div>
-        <ul class="list" id="sublist"></ul>
-      </section>
-
-      <section class="panel" id="servicios">
-        <div class="ph"><h2>Servicios</h2><button class="btn sm" data-act="add" data-col="bills">Agregar</button></div>
-        <ul class="list" id="billlist"></ul>
-      </section>
-    </div>
-  </div>
+      </div>
+    </section>
+  </main>
 </div>
 
 <dialog id="dlg"><form id="form" method="dialog"></form></dialog>
@@ -278,29 +338,96 @@ function actionFor(i){
   if(i.kind==='bill')return '<button class="btn sm" data-act="pay-bill" data-id="'+esc(i.id)+'" data-key="'+i.key+'">Pagado</button>';
   if(i.kind==='card')return '<button class="btn sm" data-act="pay-stmt" data-id="'+esc(i.id)+'">Pagado</button>';
   return '';}
+function dayLabel(d){var n=diff(d,now());if(n<0)return 'Atrasado';if(n===0)return 'Hoy';
+  var l=d.toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'});l=l.charAt(0).toUpperCase()+l.slice(1);return n===1?'Mañana · '+l:l;}
+function rowHtml(i){
+  var n=diff(i.date,now());
+  if(i.kind==='event'){
+    return '<li class="row"><span class="kind k-event">Agenda</span><div class="grow">'+(i.link?'<a class="link" href="'+esc(i.link)+'" target="_blank" rel="noopener">'+esc(i.title)+'</a>':'<span class="t">'+esc(i.title)+'</span>')+'<span class="meta">'+(i.time?i.time+' h':'Todo el día')+(i.cal?' · '+esc(i.cal):'')+'</span></div>'+eventAction(i)+'</li>';}
+  var amt='';
+  if(i.kind==='card')amt=pair({ARS:i.amt||0,USD:i.usd||0});
+  else if(i.amt)amt=fmt(i.amt,i.cur);
+  var when=i.kind==='sub'?'Se cobra '+rel(i.date):(n<0?'Venció ':'Vence ')+rel(i.date);
+  if(i.kind==='task')when=(n<0?'Era para ':'Para ')+rel(i.date);
+  return '<li class="row"><span class="kind k-'+i.kind+'">'+KIND[i.kind]+'</span><div class="grow"><button class="link" data-act="edit" data-col="'+i.col+'" data-id="'+esc(i.id)+'">'+esc(i.title)+'</button>'+exChip(i.x)+'<span class="meta">'+when+'</span></div>'+(amt?'<span class="amt">'+amt+'</span>':'')+actionFor(i)+'</li>';
+}
 function renderAgenda(){
-  var items=upcoming(),t=now(),html='',last='';
+  var items=upcoming(),html='',last='';
   if(!items.length){$('#agenda').innerHTML='<li>'+placeholder('tasks','No hay nada para hoy ni para los próximos 7 días. Acá se juntan tus eventos de Google Calendar, las tareas con fecha, los servicios, las suscripciones y los resúmenes de tarjeta.')+'</li>';return;}
   items.forEach(function(i){
-    var n=diff(i.date,t),g=n<0?'Atrasado':(n===0?'Hoy':'Próximos 7 días');
-    if(g!==last){html+='<li class="grp'+(n<0?' over':'')+'">'+g+'</li>';last=g;}
-    if(i.kind==='event'){
-      html+='<li class="row"><span class="kind k-event">Agenda</span><div class="grow">'+(i.link?'<a class="link" href="'+esc(i.link)+'" target="_blank" rel="noopener">'+esc(i.title)+'</a>':'<span class="t">'+esc(i.title)+'</span>')+'<span class="meta">'+(i.time?i.time+' h':'Todo el día')+' · '+rel(i.date)+' · '+short(i.date)+(i.cal?' · '+esc(i.cal):'')+'</span></div>'+eventAction(i)+'</li>';
-      return;}
-    var amt='';
-    if(i.kind==='card')amt=pair({ARS:i.amt||0,USD:i.usd||0});
-    else if(i.amt)amt=fmt(i.amt,i.cur);
-    var when=i.kind==='sub'?'Se cobra '+rel(i.date)+' · '+short(i.date):(n<0?'Venció ':'Vence ')+rel(i.date)+' · '+short(i.date);
-    if(i.kind==='task')when=(n<0?'Era para ':'Para ')+rel(i.date)+' · '+short(i.date);
-    html+='<li class="row"><span class="kind k-'+i.kind+'">'+KIND[i.kind]+'</span><div class="grow"><button class="link" data-act="edit" data-col="'+i.col+'" data-id="'+esc(i.id)+'">'+esc(i.title)+'</button>'+exChip(i.x)+'<span class="meta">'+when+'</span></div>'+(amt?'<span class="amt">'+amt+'</span>':'')+actionFor(i)+'</li>';
+    var g=dayLabel(i.date);
+    if(g!==last){html+='<li class="grp'+(diff(i.date,now())<0?' over':'')+'">'+esc(g)+'</li>';last=g;}
+    html+=rowHtml(i);
   });
   $('#agenda').innerHTML=html;
 }
+/* ---------- Hoy ---------- */
+var fo={end:0,title:''};
+function pickFocus(items){
+  var act=items.filter(function(i){return i.kind!=='sub';});
+  if(act.length)return act[0];
+  var rank={alta:0,media:1,baja:2};
+  var tasks=S.tasks.filter(function(x){return !x.done;}).sort(function(a,b){return (rank[a.prio]||1)-(rank[b.prio]||1);});
+  return tasks.length?{kind:'task',id:tasks[0].id,title:tasks[0].title,date:null,col:'tasks',x:tasks[0]}:null;}
+function renderFocus(items){
+  var el=$('#focus');
+  if(fo.end){el.innerHTML='<div class="focus run"><p class="eyebrow">En foco</p><h2 class="ft">'+esc(fo.title)+'</h2><div class="timer" id="ftimer">25:00</div><div class="factions"><button class="btn" data-act="focus-stop">Terminar</button></div></div>';tickFocus();return;}
+  var f=pickFocus(items);
+  if(!f){el.innerHTML=notReady('tasks')||offline?'<div class="focus"><p class="empty">'+(offline?'Sin conexión con el guardado.':'Cargando…')+'</p></div>':'<div class="focus"><p class="eyebrow">Lo que sigue</p><h2 class="ft">Todo al día</h2><p class="fmeta">No hay nada pendiente para hoy ni para esta semana. Podés agregar una tarea en Tareas.</p></div>';return;}
+  var n=f.date?diff(f.date,now()):null,when;
+  if(f.kind==='event')when=(f.time?f.time+' h':'Todo el día')+' · '+rel(f.date);
+  else if(f.kind==='task')when=f.date?(n<0?'Era para ':'Para ')+rel(f.date):'Sin fecha';
+  else when=(n<0?'Venció ':'Vence ')+rel(f.date);
+  var amt=f.kind==='card'?pair({ARS:f.amt||0,USD:f.usd||0}):(f.amt?fmt(f.amt,f.cur):'');
+  var act=f.kind==='event'?(f.link?'<a class="btn primary" href="'+esc(f.link)+'" target="_blank" rel="noopener">Abrir en Calendar</a>':''):
+    (f.kind==='task'?'<button class="btn primary" data-act="toggle-task" data-id="'+esc(f.id)+'">Hecha</button><button class="btn" data-act="focus-start" data-id="'+esc(f.id)+'">Foco 25 min</button>':
+    f.kind==='bill'?'<button class="btn primary" data-act="pay-bill" data-id="'+esc(f.id)+'" data-key="'+f.key+'">Pagado</button>':
+    f.kind==='card'?'<button class="btn primary" data-act="pay-stmt" data-id="'+esc(f.id)+'">Pagado</button>':'');
+  var next=items.filter(function(i){return i!==f&&i.kind!=='sub';})[0];
+  el.innerHTML='<div class="focus"><p class="eyebrow">Lo que sigue · '+KIND[f.kind]+'</p><h2 class="ft">'+esc(f.title)+'</h2><p class="fmeta">'+when+(amt?' · '+amt:'')+'</p><div class="factions">'+act+'</div>'+(next?'<p class="fnext">Después: '+esc(next.title)+' · '+rel(next.date)+'</p>':'')+'</div>';
+}
+function tickFocus(){var el=$('#ftimer');if(!el||!fo.end)return;var ms=fo.end-Date.now();
+  if(ms<=0){fo.end=0;toast('Terminó el foco. Tomate 5 minutos de descanso.');render();return;}
+  el.textContent=pad(Math.floor(ms/60000))+':'+pad(Math.floor(ms%60000/1000));}
+setInterval(tickFocus,1000);
+function renderToday(){
+  var items=upcoming(),f=fo.end?null:pickFocus(items);
+  renderFocus(items);
+  var rest=items.filter(function(i){return i!==f&&diff(i.date,now())<=0;});
+  $('#todaylist').innerHTML=rest.length?rest.slice(0,6).map(rowHtml).join('')+(rest.length>6?'<li class="row"><span class="meta">y '+(rest.length-6)+' más en Agenda</span></li>':''):'<li><p class="empty">Nada más para hoy.</p></li>';
+  var today=ymd(now());
+  $('#todayhabits').innerHTML=S.habits.length?'<div class="hbig">'+S.habits.map(function(h){var on=!!(h.days&&h.days[today]);
+    return '<button class="'+(on?'on':'')+'" data-act="toggle-habit" data-id="'+esc(h.id)+'" data-date="'+today+'" aria-pressed="'+on+'">'+(on?'✓ ':'')+esc(h.name)+'</button>';}).join('')+'</div>':placeholder('habits','Todavía no hay hábitos. Agregá uno en la pestaña Hábitos.');
+  renderTabs(items);
+}
+/* ---------- pestañas ---------- */
+var TAB='hoy',SUB='resumen';
+try{TAB=localStorage.getItem('pv-tab')||'hoy';SUB=localStorage.getItem('pv-sub')||'resumen';}catch(e){}
+function setBadge(id,n,hot){var el=document.getElementById(id);if(!el)return;el.textContent=n?String(n):'';el.className='bdg'+(hot?' hot':'');}
+function renderTabs(items){
+  var t=now(),over=items.filter(function(i){return diff(i.date,t)<0;}).length,todayN=items.filter(function(i){return i.kind!=='sub'&&diff(i.date,t)<=0;}).length;
+  setBadge('b-hoy',todayN,over>0);
+  setBadge('b-agenda',items.filter(function(i){return i.kind!=='sub';}).length);
+  setBadge('b-tareas',S.tasks.filter(function(x){return !x.done;}).length);
+  var td=ymd(t);setBadge('b-habitos',S.habits.filter(function(h){return !(h.days&&h.days[td]);}).length);
+  var cards=items.filter(function(i){return i.kind==='card';}).length,bills=items.filter(function(i){return i.kind==='bill';}).length;
+  setBadge('b-finanzas',cards+bills,items.some(function(i){return (i.kind==='card'||i.kind==='bill')&&diff(i.date,t)<0;}));
+  setBadge('sb-tarjeta',cards);setBadge('sb-servicios',bills);
+  setBadge('sb-gmail',gm.status==='ok'?gmVisible().length:0);
+}
+function showTab(){
+  document.querySelectorAll('.view').forEach(function(v){v.hidden=v.id!=='v-'+TAB;});
+  document.querySelectorAll('#tabs .tab').forEach(function(b){b.setAttribute('aria-selected',String(b.dataset.tab===TAB));});
+  document.querySelectorAll('[data-subview]').forEach(function(v){v.hidden=v.dataset.subview!==SUB;});
+  document.querySelectorAll('#subtabs .tab').forEach(function(b){b.setAttribute('aria-selected',String(b.dataset.sub===SUB));});
+}
+function goTab(t,sub){TAB=t;if(sub)SUB=sub;try{localStorage.setItem('pv-tab',TAB);localStorage.setItem('pv-sub',SUB);}catch(e){}showTab();window.scrollTo({top:0});}
 function taskRow(x){
   var due=x.due?parse(x.due):null,over=due&&!x.done&&diff(due,now())<0;
   return '<li class="row'+(x.done?' done':'')+'"><button class="check'+(x.done?' on':'')+'" data-act="toggle-task" data-id="'+esc(x.id)+'" aria-label="'+(x.done?'Marcar pendiente':'Marcar hecha')+'"></button>'+
     '<div class="grow"><button class="link t" data-act="edit" data-col="tasks" data-id="'+esc(x.id)+'">'+esc(x.title)+'</button> '+exChip(x)+'</div>'+
     (x.prio==='alta'&&!x.done?chip('Alta','bad'):'')+(due?chip(over?'Atrasada · '+short(due):short(due),over?'bad':''):'')+'</li>';}
+function taskGroup(x){if(!x.due)return 'Sin fecha';var n=diff(parse(x.due),now());return n<0?'Atrasadas':(n===0?'Hoy':(n<=7?'Esta semana':'Más adelante'));}
 function renderTasks(){
   var rank={alta:0,media:1,baja:2};
   var open=S.tasks.filter(function(x){return !x.done;}).sort(function(a,b){
@@ -308,7 +435,9 @@ function renderTasks(){
     if(a.due!==b.due)return a.due<b.due?-1:1;
     return (rank[a.prio]||1)-(rank[b.prio]||1);});
   var done=S.tasks.filter(function(x){return x.done;}).sort(function(a,b){return (b.doneAt||0)-(a.doneAt||0);});
-  var html=open.length?open.map(taskRow).join(''):'<li>'+placeholder('tasks','No hay tareas pendientes. Escribí una arriba y apretá Enter.')+'</li>';
+  var html='',last='';
+  if(!open.length)html='<li>'+placeholder('tasks','No hay tareas pendientes. Escribí una arriba y apretá Enter.')+'</li>';
+  open.forEach(function(x){var g=taskGroup(x);if(g!==last){html+='<li class="grp'+(g==='Atrasadas'?' over':'')+'">'+g+'</li>';last=g;}html+=taskRow(x);});
   if(done.length){
     html+='<li class="row"><button class="btn sm" data-act="toggle-done">'+(showDone?'Ocultar':'Ver')+' hechas ('+done.length+')</button></li>';
     if(showDone)html+=done.slice(0,10).map(taskRow).join('');
@@ -401,7 +530,7 @@ function renderHeader(){
 function render(){
   if(pending)return;pending=true;
   requestAnimationFrame(function(){pending=false;
-    renderHeader();renderCalState();renderGmail();renderAgenda();renderTasks();renderHabits();renderNotes();renderFinance();renderStatements();renderSubs();renderBills();});
+    renderHeader();renderCalState();renderGmail();renderAgenda();renderToday();renderTasks();renderHabits();renderNotes();renderFinance();renderStatements();renderSubs();renderBills();});
 }
 
 /* ---------- forms ---------- */
@@ -475,6 +604,8 @@ function clearExamples(){
 }
 
 document.addEventListener('click',function(e){
+  var tb=e.target.closest('[data-tab],[data-tab-go],[data-sub]');
+  if(tb){if(tb.dataset.sub)goTab('finanzas',tb.dataset.sub);else goTab(tb.dataset.tab||tb.dataset.tabGo);return;}
   var go=e.target.closest('[data-go]');
   if(go){var el=document.getElementById(go.dataset.go);if(el)el.scrollIntoView({behavior:'smooth',block:'start'});return;}
   var b=e.target.closest('[data-act]');if(!b)return;
@@ -498,6 +629,8 @@ document.addEventListener('click',function(e){
   if(a==='cal-reload')return loadCalendar();
   if(a==='wx-reload')return loadWeather();
   if(a==='gm-scan')return scanGmail();
+  if(a==='focus-start'){x=find('tasks',id);if(x){fo={end:Date.now()+25*60000,title:x.title};render();}return;}
+  if(a==='focus-stop'){fo.end=0;render();return;}
   if(!need())return;
   if(a==='mail-done'){
     saveMailPrefs();
@@ -780,6 +913,7 @@ async function loadCalendar(){
 }
 
 /* ---------- start ---------- */
+showTab();
 (async function initCal(){
   try{mcp=window.claude&&window.claude.use?await window.claude.use('mcp'):null;}catch(e){mcp=null;}
   if(!mcp){cal.status='unavailable';render();return;}
