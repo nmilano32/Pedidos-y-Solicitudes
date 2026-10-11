@@ -6,7 +6,7 @@
   --bg:#EDF1EF;--surface:#FBFCFB;--surface2:#E5EBE8;--fg:#14201D;--muted:#55655F;--line:#D3DBD7;
   --accent:#0E6A5B;--accent-fg:#FFFFFF;--accent-soft:#D3EAE3;
   --good:#1B7A45;--warn:#A25600;--bad:#B3261E;
-  --c-task:#14201D;--c-sub:#3A6EA5;--c-bill:#B98213;--c-card:#0E6A5B;
+  --c-task:#14201D;--c-sub:#3A6EA5;--c-bill:#B98213;--c-card:#0E6A5B;--c-event:#B0476B;
   --f-display:'Bricolage Grotesque',system-ui,sans-serif;
   --f-body:'Hanken Grotesk',system-ui,sans-serif;
   --f-mono:'IBM Plex Mono',ui-monospace,monospace;
@@ -15,12 +15,12 @@
   --bg:#0F1715;--surface:#16211E;--surface2:#1F2D29;--fg:#E6EEEB;--muted:#97AAA4;--line:#2B3C37;
   --accent:#4FC3A8;--accent-fg:#06201A;--accent-soft:#17342E;
   --good:#6CCB93;--warn:#E3A540;--bad:#F0867F;
-  --c-task:#E6EEEB;--c-sub:#7FAEE0;--c-bill:#E0B34F;--c-card:#4FC3A8;color-scheme:dark}}
+  --c-task:#E6EEEB;--c-sub:#7FAEE0;--c-bill:#E0B34F;--c-card:#4FC3A8;--c-event:#E58BAA;color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0F1715;--surface:#16211E;--surface2:#1F2D29;--fg:#E6EEEB;--muted:#97AAA4;--line:#2B3C37;
   --accent:#4FC3A8;--accent-fg:#06201A;--accent-soft:#17342E;
   --good:#6CCB93;--warn:#E3A540;--bad:#F0867F;
-  --c-task:#E6EEEB;--c-sub:#7FAEE0;--c-bill:#E0B34F;--c-card:#4FC3A8;color-scheme:dark}
+  --c-task:#E6EEEB;--c-sub:#7FAEE0;--c-bill:#E0B34F;--c-card:#4FC3A8;--c-event:#E58BAA;color-scheme:dark}
 
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.45;padding-inline:16px;padding-block:20px 64px}
@@ -71,12 +71,16 @@ h2{font:600 18px/1.2 var(--f-display);margin:0;letter-spacing:-.005em}
 .amt small{display:block;font-size:11px;color:var(--muted);text-align:right}
 .kind{display:inline-flex;align-items:center;gap:6px;width:92px;font:500 11px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 .kind::before{content:"";width:8px;height:8px;border-radius:2px;background:var(--kc,var(--fg))}
-.k-task{--kc:var(--c-task)}.k-sub{--kc:var(--c-sub)}.k-bill{--kc:var(--c-bill)}.k-card{--kc:var(--c-card)}
+.k-task{--kc:var(--c-task)}.k-sub{--kc:var(--c-sub)}.k-bill{--kc:var(--c-bill)}.k-card{--kc:var(--c-card)}.k-event{--kc:var(--c-event)}
 .chip{display:inline-block;font:500 11px/1 var(--f-mono);letter-spacing:.03em;padding:4px 7px;border-radius:5px;background:var(--surface2);color:var(--muted);white-space:nowrap}
 .chip.good{color:var(--good);background:color-mix(in srgb,var(--good) 14%,transparent)}
 .chip.warn{color:var(--warn);background:color-mix(in srgb,var(--warn) 14%,transparent)}
 .chip.bad{color:var(--bad);background:color-mix(in srgb,var(--bad) 14%,transparent)}
 .chip.ex{background:transparent;border:1px dashed var(--line)}
+.calstate{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:6px 10px;font-size:12.5px;color:var(--muted);text-align:right}
+.calstate.err{color:var(--warn)}
+a.link{color:inherit;text-decoration:none}
+a.link:hover{text-decoration:underline}
 .empty{margin:0;padding-block:6px;color:var(--muted);font-size:14px}
 .done .t{text-decoration:line-through;color:var(--muted)}
 
@@ -151,7 +155,7 @@ dialog::backdrop{background:rgba(8,16,14,.6)}
   <div class="cols">
     <div class="col">
       <section class="panel" id="hoy">
-        <div class="ph"><h2>Hoy y los próximos 7 días</h2></div>
+        <div class="ph"><h2>Hoy y los próximos 7 días</h2><div class="calstate" id="calstate"></div></div>
         <ul class="list" id="agenda"></ul>
       </section>
 
@@ -212,6 +216,7 @@ dialog::backdrop{background:rgba(8,16,14,.6)}
 'use strict';
 var COLS=['tasks','habits','statements','subs','bills','notes'];
 var S={},loaded={},db=null,offline=false,showDone=false,pending=false;
+var mcp=null,CAL='Google Calendar',cal={status:'idle',events:[],err:null,at:0};
 COLS.forEach(function(c){S[c]=[];loaded[c]=false;});
 
 /* ---------- helpers ---------- */
@@ -248,11 +253,12 @@ function upcoming(){var items=[],t=now();
   S.bills.forEach(function(x){var d=billDue(x);if(!d.paidNow||diff(d.date,t)<=7)items.push({kind:'bill',id:x.id,title:x.name,date:d.date,amt:x.amount,cur:x.currency,key:d.key,col:'bills',x:x});});
   S.statements.forEach(function(x){if(!x.paid&&x.due)items.push({kind:'card',id:x.id,title:x.card,date:parse(x.due),amt:x.amount,usd:x.amountUsd,min:x.minimum,col:'statements',x:x});});
   S.subs.forEach(function(x){items.push({kind:'sub',id:x.id,title:x.name,date:subNext(x),amt:x.amount,cur:x.currency,col:'subs',x:x});});
-  return items.filter(function(i){return diff(i.date,t)<=7;}).sort(function(a,b){return a.date-b.date;});}
+  cal.events.forEach(function(e){items.push(e);});
+  return items.filter(function(i){return diff(i.date,t)<=7;}).sort(function(a,b){return (a.date-b.date)||((a.time||'').localeCompare(b.time||''));});}
 function streak(h){var d=now(),n=0;if(!(h.days&&h.days[ymd(d)]))d.setDate(d.getDate()-1);while(h.days&&h.days[ymd(d)]){n++;d.setDate(d.getDate()-1);}return n;}
 
 /* ---------- render ---------- */
-var KIND={task:'Tarea',bill:'Servicio',card:'Tarjeta',sub:'Suscripción'};
+var KIND={task:'Tarea',bill:'Servicio',card:'Tarjeta',sub:'Suscripción',event:'Agenda'};
 function actionFor(i){
   if(i.kind==='task')return '<button class="btn sm" data-act="toggle-task" data-id="'+esc(i.id)+'">Hecha</button>';
   if(i.kind==='bill')return '<button class="btn sm" data-act="pay-bill" data-id="'+esc(i.id)+'" data-key="'+i.key+'">Pagado</button>';
@@ -260,10 +266,13 @@ function actionFor(i){
   return '';}
 function renderAgenda(){
   var items=upcoming(),t=now(),html='',last='';
-  if(!items.length){$('#agenda').innerHTML='<li>'+placeholder('tasks','Nada vence hoy ni en los próximos 7 días. Las tareas con fecha, los servicios, las suscripciones y los resúmenes de tarjeta que cargues aparecen acá.')+'</li>';return;}
+  if(!items.length){$('#agenda').innerHTML='<li>'+placeholder('tasks','No hay nada para hoy ni para los próximos 7 días. Acá se juntan tus eventos de Google Calendar, las tareas con fecha, los servicios, las suscripciones y los resúmenes de tarjeta.')+'</li>';return;}
   items.forEach(function(i){
     var n=diff(i.date,t),g=n<0?'Atrasado':(n===0?'Hoy':'Próximos 7 días');
     if(g!==last){html+='<li class="grp'+(n<0?' over':'')+'">'+g+'</li>';last=g;}
+    if(i.kind==='event'){
+      html+='<li class="row"><span class="kind k-event">Agenda</span><div class="grow">'+(i.link?'<a class="link" href="'+esc(i.link)+'" target="_blank" rel="noopener">'+esc(i.title)+'</a>':'<span class="t">'+esc(i.title)+'</span>')+'<span class="meta">'+(i.time?i.time+' h':'Todo el día')+' · '+rel(i.date)+' · '+short(i.date)+(i.cal?' · '+esc(i.cal):'')+'</span></div></li>';
+      return;}
     var amt='';
     if(i.kind==='card')amt=pair({ARS:i.amt||0,USD:i.usd||0});
     else if(i.amt)amt=fmt(i.amt,i.cur);
@@ -365,11 +374,12 @@ function renderHeader(){
   $('#dateline').textContent=s.charAt(0).toUpperCase()+s.slice(1);
   var today=ymd(now()),tt=S.tasks.filter(function(x){return x.due===today;}),td=tt.filter(function(x){return x.done;}).length;
   var hd=S.habits.filter(function(x){return x.days&&x.days[today];}).length;
-  var week=upcoming().filter(function(i){return i.kind!=='sub'&&i.kind!=='task';}).length;
+  var up=upcoming(),week=up.filter(function(i){return i.kind==='bill'||i.kind==='card';}).length,evToday=up.filter(function(i){return i.kind==='event'&&ymd(i.date)===today;}).length;
   $('#tstats').innerHTML=
     '<div class="tstat"><b>'+td+'/'+tt.length+'</b><span>tareas de hoy</span></div>'+
     '<div class="tstat"><b>'+hd+'/'+S.habits.length+'</b><span>hábitos de hoy</span></div>'+
-    '<div class="tstat"><b>'+week+'</b><span>pagos esta semana</span></div>';
+    '<div class="tstat"><b>'+week+'</b><span>pagos esta semana</span></div>'+
+    (cal.status==='ok'?'<div class="tstat"><b>'+evToday+'</b><span>eventos de hoy</span></div>':'');
   var ex=0;COLS.forEach(function(c){S[c].forEach(function(x){if(x.example)ex++;});});
   $('#banner').innerHTML=ex?'<div class="banner"><p>Estás viendo datos de ejemplo para que veas cómo queda. Tocá cualquier ítem para cambiarlo por el tuyo, o borrá todos los ejemplos juntos.</p><button class="btn sm danger" data-act="clear-examples">Borrar ejemplos</button></div>':
     (offline?'<div class="banner"><p>No hay conexión con el guardado, así que no se puede leer ni guardar nada. Abrí el panel desde claude.ai con tu cuenta.</p></div>':'');
@@ -377,7 +387,7 @@ function renderHeader(){
 function render(){
   if(pending)return;pending=true;
   requestAnimationFrame(function(){pending=false;
-    renderHeader();renderAgenda();renderTasks();renderHabits();renderNotes();renderFinance();renderStatements();renderSubs();renderBills();});
+    renderHeader();renderCalState();renderAgenda();renderTasks();renderHabits();renderNotes();renderFinance();renderStatements();renderSubs();renderBills();});
 }
 
 /* ---------- forms ---------- */
@@ -465,6 +475,7 @@ document.addEventListener('click',function(e){
     write(db.collection(dc).doc(di).delete().then(function(){dlg.close();toast('Eliminado');}));return;}
   if(a==='toggle-done'){showDone=!showDone;render();return;}
   if(a==='clear-examples')return clearExamples();
+  if(a==='cal-reload')return loadCalendar();
   if(!need())return;
   if(a==='toggle-task'){x=find('tasks',id);if(x)write(db.collection('tasks').doc(id).update({done:!x.done,doneAt:x.done?0:Date.now()}));}
   else if(a==='pay-bill'){var o={};o[b.dataset.key]=true;write(db.collection('bills').doc(id).update({paid:o}));}
@@ -483,7 +494,73 @@ $('#noteform').addEventListener('submit',function(e){
   write(db.collection('notes').doc().set({text:t,createdAt:Date.now()}).then(function(){$('#note-text').value='';}));
 });
 
+/* ---------- Google Calendar ---------- */
+var CAL_MSG={
+  needs_reauth:'Volvé a conectar Google Calendar en Configuración → Conectores.',
+  server_not_connected:'Conectá Google Calendar en Configuración → Conectores de claude.ai.',
+  not_in_manifest:'Google Calendar no está permitido para este panel.',
+  selection_required:'Elegí qué conexión de Google Calendar usar.',
+  blocked_by_policy:'Tu organización bloquea Google Calendar.',
+  approval_required:'Google Calendar necesita tu aprobación.',
+  server_unavailable:'Google Calendar no responde ahora.'
+};
+function renderCalState(){
+  var el=$('#calstate');if(!el)return;
+  if(!mcp&&cal.status==='idle'){el.innerHTML='';return;}
+  if(cal.status==='loading'&&!cal.events.length){el.textContent='Leyendo Google Calendar…';el.className='calstate';return;}
+  if(cal.status==='error'){
+    el.className='calstate err';
+    var c=cal.err&&cal.err.code;
+    el.innerHTML='<span>'+esc(CAL_MSG[c]||('No se pudo leer Google Calendar'+(c?' ('+c+')':'')+'.'))+'</span><button class="btn sm" data-act="cal-reload">Reintentar</button>';return;}
+  if(cal.status==='unavailable'){el.className='calstate';el.textContent='Google Calendar no está disponible en esta vista.';return;}
+  el.className='calstate';
+  el.innerHTML='<span>Calendar · '+new Date(cal.at).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})+' h</span><button class="btn sm" data-act="cal-reload">Actualizar</button>';
+}
+function toEvent(e,calName){
+  if(!e||e.status==='cancelled'||!e.start)return null;
+  var t=now(),title=e.summary||'(sin título)',date,time='';
+  if(e.start.dateTime){
+    var st=new Date(e.start.dateTime);date=new Date(st.getFullYear(),st.getMonth(),st.getDate());
+    time=pad(st.getHours())+':'+pad(st.getMinutes());
+    if(date<t)date=t;
+  }else{
+    date=parse(String(e.start.date).slice(0,10));
+    if(e.end&&e.end.date&&parse(String(e.end.date).slice(0,10))<=t)return null;
+    if(date<t)date=t;
+  }
+  return {kind:'event',id:e.id,title:title,date:date,time:time,cal:calName,link:e.htmlLink||''};
+}
+async function loadCalendar(){
+  if(!mcp||cal.status==='loading')return;
+  cal.status='loading';renderCalState();
+  try{
+    var lc=await mcp.callTool(CAL,'list_calendars',{});
+    var cals=(lc.payload&&lc.payload.calendars)||[];
+    var t=now(),end=new Date(t);end.setDate(end.getDate()+8);
+    var input={startTime:ymd(t)+'T00:00:00',endTime:ymd(end)+'T00:00:00',orderBy:'startTime',pageSize:100};
+    var rs=await Promise.all(cals.map(function(c){
+      return mcp.callTool(CAL,'list_events',Object.assign({calendarId:c.id},input),{cache:false}).then(function(r){return {c:c,r:r};},function(e){return {c:c,e:e};});}));
+    var evs=[],firstErr=null,okCount=0;
+    rs.forEach(function(x){
+      if(x.e){firstErr=firstErr||x.e;return;}
+      okCount++;
+      var list=(x.r.payload&&x.r.payload.events)||[];
+      list.forEach(function(e){var ev=toEvent(e,x.c.summary);if(ev)evs.push(ev);});
+    });
+    if(cals.length&&!okCount)throw firstErr;
+    cal.events=evs;cal.status='ok';cal.err=null;cal.at=Date.now();
+  }catch(err){
+    cal.status='error';cal.err=err||{};
+  }
+  render();
+}
+
 /* ---------- start ---------- */
+(async function initCal(){
+  try{mcp=window.claude&&window.claude.use?await window.claude.use('mcp'):null;}catch(e){mcp=null;}
+  if(!mcp){cal.status='unavailable';render();return;}
+  loadCalendar();
+})();
 (async function init(){
   render();
   try{db=window.claude&&window.claude.use?await window.claude.use('db'):null;}catch(e){db=null;}
@@ -496,5 +573,6 @@ $('#noteform').addEventListener('submit',function(e){
   });
 })();
 setInterval(function(){render();},60*60*1000);
+setInterval(function(){if(!document.hidden&&cal.status==='ok')loadCalendar();},15*60*1000);
 })();
 </script>
