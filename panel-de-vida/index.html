@@ -1,0 +1,500 @@
+<title>Panel de vida</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: cabecera con la fecha, dos columnas en escritorio (día a día | finanzas), una sola columna en el celular con navegación fija. */
+:root{
+  --bg:#EDF1EF;--surface:#FBFCFB;--surface2:#E5EBE8;--fg:#14201D;--muted:#55655F;--line:#D3DBD7;
+  --accent:#0E6A5B;--accent-fg:#FFFFFF;--accent-soft:#D3EAE3;
+  --good:#1B7A45;--warn:#A25600;--bad:#B3261E;
+  --c-task:#14201D;--c-sub:#3A6EA5;--c-bill:#B98213;--c-card:#0E6A5B;
+  --f-display:'Bricolage Grotesque',system-ui,sans-serif;
+  --f-body:'Hanken Grotesk',system-ui,sans-serif;
+  --f-mono:'IBM Plex Mono',ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0F1715;--surface:#16211E;--surface2:#1F2D29;--fg:#E6EEEB;--muted:#97AAA4;--line:#2B3C37;
+  --accent:#4FC3A8;--accent-fg:#06201A;--accent-soft:#17342E;
+  --good:#6CCB93;--warn:#E3A540;--bad:#F0867F;
+  --c-task:#E6EEEB;--c-sub:#7FAEE0;--c-bill:#E0B34F;--c-card:#4FC3A8;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F1715;--surface:#16211E;--surface2:#1F2D29;--fg:#E6EEEB;--muted:#97AAA4;--line:#2B3C37;
+  --accent:#4FC3A8;--accent-fg:#06201A;--accent-soft:#17342E;
+  --good:#6CCB93;--warn:#E3A540;--bad:#F0867F;
+  --c-task:#E6EEEB;--c-sub:#7FAEE0;--c-bill:#E0B34F;--c-card:#4FC3A8;color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.45;padding-inline:16px;padding-block:20px 64px}
+.wrap{max-width:1180px;margin-inline:auto}
+button{font-family:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.top{display:flex;flex-wrap:wrap;gap:18px 40px;justify-content:space-between;align-items:flex-end;padding-block:6px 18px}
+.eyebrow{font:500 12px/1 var(--f-mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:0 0 12px}
+h1{font:700 clamp(28px,5vw,44px)/1.05 var(--f-display);letter-spacing:-.02em;margin:0;text-wrap:balance}
+.dateline{margin:8px 0 0;color:var(--muted);font-size:16px}
+.tstats{display:flex;flex-wrap:wrap;gap:8px 28px}
+.tstat b{display:block;font:500 24px/1.1 var(--f-mono);font-variant-numeric:tabular-nums}
+.tstat span{font-size:12px;color:var(--muted)}
+
+.nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;display:none;gap:6px;overflow-x:auto;padding-block:8px;margin-bottom:8px;background:var(--bg)}
+.nav button{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 14px;font-weight:600;font-size:13px;cursor:pointer}
+@media (max-width:979px){.nav{display:flex}}
+
+.banner{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;background:var(--accent-soft);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:14px}
+.banner p{margin:0;flex:1 1 260px}
+
+.cols{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+@media (min-width:980px){.cols{grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:20px;align-items:start}}
+.col{display:flex;flex-direction:column;gap:16px;min-width:0}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;scroll-margin-top:60px}
+.ph{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+h2{font:600 18px/1.2 var(--f-display);margin:0;letter-spacing:-.005em}
+.sub{margin:0 0 10px;color:var(--muted);font-size:13px}
+
+.btn{font:600 13px var(--f-body);padding:7px 12px;border-radius:8px;border:1px solid var(--line);background:var(--surface2);cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:transparent}
+.btn.sm{padding:5px 10px;font-size:12px}
+.btn.danger{color:var(--bad)}
+.link{background:none;border:0;padding:0;text-align:left;font:inherit;font-weight:600;cursor:pointer;overflow-wrap:anywhere}
+.link:hover{text-decoration:underline}
+
+.list{list-style:none;margin:0;padding:0}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding-block:10px;border-top:1px solid var(--line)}
+.list>.row:first-child{border-top:0}
+.grp{font:500 11px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding-block:12px 4px}
+.list>.grp:first-child{padding-top:0}
+.grp.over{color:var(--bad)}
+.grow{flex:1 1 150px;min-width:0}
+.meta{display:block;font-size:12.5px;color:var(--muted)}
+.amt{font:500 14px var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.amt small{display:block;font-size:11px;color:var(--muted);text-align:right}
+.kind{display:inline-flex;align-items:center;gap:6px;width:92px;font:500 11px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.kind::before{content:"";width:8px;height:8px;border-radius:2px;background:var(--kc,var(--fg))}
+.k-task{--kc:var(--c-task)}.k-sub{--kc:var(--c-sub)}.k-bill{--kc:var(--c-bill)}.k-card{--kc:var(--c-card)}
+.chip{display:inline-block;font:500 11px/1 var(--f-mono);letter-spacing:.03em;padding:4px 7px;border-radius:5px;background:var(--surface2);color:var(--muted);white-space:nowrap}
+.chip.good{color:var(--good);background:color-mix(in srgb,var(--good) 14%,transparent)}
+.chip.warn{color:var(--warn);background:color-mix(in srgb,var(--warn) 14%,transparent)}
+.chip.bad{color:var(--bad);background:color-mix(in srgb,var(--bad) 14%,transparent)}
+.chip.ex{background:transparent;border:1px dashed var(--line)}
+.empty{margin:0;padding-block:6px;color:var(--muted);font-size:14px}
+.done .t{text-decoration:line-through;color:var(--muted)}
+
+.check{flex:none;width:22px;height:22px;border-radius:50%;border:2px solid var(--muted);background:transparent;cursor:pointer;padding:0;position:relative}
+.check.on{background:var(--accent);border-color:var(--accent)}
+.check.on::after{content:"";position:absolute;left:6px;top:2px;width:5px;height:10px;border:solid var(--accent-fg);border-width:0 2px 2px 0;transform:rotate(45deg)}
+
+form.quick{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+form.quick input[type=text]{flex:1 1 180px}
+input,select,textarea{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;min-width:0}
+form.quick input[type=date]{width:auto}
+textarea{resize:vertical}
+
+.hhead,.hrow{display:grid;grid-template-columns:minmax(0,1fr) auto repeat(7,26px);gap:6px;align-items:center}
+.hhead{font:500 10px var(--f-mono);color:var(--muted);text-align:center;padding-bottom:6px}
+.hrow{padding-block:8px;border-top:1px solid var(--line)}
+.streak{font:500 11px var(--f-mono);color:var(--muted);min-width:44px;text-align:right}
+.dot{width:26px;height:26px;border-radius:50%;border:1.5px solid var(--line);background:transparent;padding:0;cursor:pointer}
+.dot.on{background:var(--accent);border-color:var(--accent)}
+.dot.today{border-color:var(--fg)}
+.dot.on.today{border-color:var(--accent);box-shadow:0 0 0 2px var(--surface),0 0 0 3.5px var(--accent)}
+
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.tile{background:var(--surface2);border-radius:8px;padding:12px}
+.tile span{font-size:12px;color:var(--muted)}
+.tile b{display:block;margin-top:4px;font:500 19px/1.2 var(--f-mono);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.tile b small{display:block;font-size:12px;color:var(--muted)}
+.tile.lead b{color:var(--accent)}
+.bar{display:flex;gap:2px;height:12px;border-radius:6px;overflow:hidden;background:var(--surface2);margin-top:6px}
+.bar i{display:block;min-width:3px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:10px;font-size:13px;color:var(--muted)}
+.legend span::before{content:"";display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;background:var(--lc)}
+.legend b{font:500 13px var(--f-mono);color:var(--fg);margin-left:4px}
+
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
+.cc{border:1px solid var(--line);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:6px}
+.cc.paid{opacity:.62}
+.cc .name{font:600 16px var(--f-display)}
+.cc .big{font:500 22px/1.15 var(--f-mono);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.cc .big small{display:block;font-size:13px;color:var(--muted)}
+.cc .foot{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-top:4px}
+.note{white-space:pre-wrap;overflow-wrap:anywhere}
+
+dialog{border:1px solid var(--line);border-radius:12px;padding:0;background:var(--surface);color:var(--fg);width:min(460px,calc(100% - 32px))}
+dialog::backdrop{background:rgba(8,16,14,.6)}
+#form{display:flex;flex-direction:column;gap:14px;padding:20px}
+#form h3{font:600 20px var(--f-display);margin:0}
+#form label{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:600}
+#form .actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:4px}
+#form .actions .spacer{flex:1}
+
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:14px;z-index:20;max-width:calc(100% - 32px)}
+@media (prefers-reduced-motion:no-preference){.btn,.check,.dot{transition:background .15s,border-color .15s}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <p class="eyebrow">Panel de vida</p>
+      <h1 id="hello">Hola</h1>
+      <p class="dateline" id="dateline"></p>
+    </div>
+    <div class="tstats" id="tstats"></div>
+  </header>
+
+  <nav class="nav" id="nav" aria-label="Secciones">
+    <button data-go="hoy">Hoy</button><button data-go="tareas">Tareas</button><button data-go="habitos">Hábitos</button><button data-go="finanzas">Finanzas</button><button data-go="notas">Notas</button>
+  </nav>
+
+  <div id="banner"></div>
+
+  <div class="cols">
+    <div class="col">
+      <section class="panel" id="hoy">
+        <div class="ph"><h2>Hoy y los próximos 7 días</h2></div>
+        <ul class="list" id="agenda"></ul>
+      </section>
+
+      <section class="panel" id="tareas">
+        <div class="ph"><h2>Tareas</h2></div>
+        <form class="quick" id="taskform">
+          <input type="text" id="task-title" placeholder="Nueva tarea, Enter para agregar" autocomplete="off" aria-label="Nueva tarea">
+          <input type="date" id="task-due" aria-label="Fecha límite">
+          <button class="btn primary" type="submit">Agregar</button>
+        </form>
+        <ul class="list" id="tasklist"></ul>
+      </section>
+
+      <section class="panel" id="habitos">
+        <div class="ph"><h2>Hábitos</h2><button class="btn sm" data-act="add" data-col="habits">Nuevo hábito</button></div>
+        <div id="habitlist"></div>
+      </section>
+
+      <section class="panel" id="notas">
+        <div class="ph"><h2>Notas rápidas</h2></div>
+        <form class="quick" id="noteform">
+          <textarea id="note-text" rows="2" placeholder="Una idea o algo para no olvidar" aria-label="Nueva nota"></textarea>
+          <button class="btn primary" type="submit">Guardar nota</button>
+        </form>
+        <ul class="list" id="notelist"></ul>
+      </section>
+    </div>
+
+    <div class="col">
+      <section class="panel" id="finanzas">
+        <div class="ph"><h2>Finanzas del mes</h2></div>
+        <div id="finsummary"></div>
+      </section>
+
+      <section class="panel" id="tarjetas">
+        <div class="ph"><h2>Resumen de tarjeta de crédito</h2><button class="btn sm" data-act="add" data-col="statements">Cargar resumen</button></div>
+        <div id="stmts"></div>
+      </section>
+
+      <section class="panel" id="subs">
+        <div class="ph"><h2>Suscripciones</h2><button class="btn sm" data-act="add" data-col="subs">Agregar</button></div>
+        <ul class="list" id="sublist"></ul>
+      </section>
+
+      <section class="panel" id="servicios">
+        <div class="ph"><h2>Servicios</h2><button class="btn sm" data-act="add" data-col="bills">Agregar</button></div>
+        <ul class="list" id="billlist"></ul>
+      </section>
+    </div>
+  </div>
+</div>
+
+<dialog id="dlg"><form id="form" method="dialog"></form></dialog>
+<div id="toast" hidden></div>
+
+<script>
+(function(){
+'use strict';
+var COLS=['tasks','habits','statements','subs','bills','notes'];
+var S={},loaded={},db=null,offline=false,showDone=false,pending=false;
+COLS.forEach(function(c){S[c]=[];loaded[c]=false;});
+
+/* ---------- helpers ---------- */
+var $=function(s){return document.querySelector(s);};
+var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});};
+var pad=function(n){return String(n).padStart(2,'0');};
+var ymd=function(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());};
+var ym=function(d){return d.getFullYear()+'-'+pad(d.getMonth()+1);};
+var parse=function(s){var p=s.split('-').map(Number);return new Date(p[0],p[1]-1,p[2]);};
+var now=function(){var d=new Date();return new Date(d.getFullYear(),d.getMonth(),d.getDate());};
+var diff=function(a,b){return Math.round((Date.UTC(a.getFullYear(),a.getMonth(),a.getDate())-Date.UTC(b.getFullYear(),b.getMonth(),b.getDate()))/864e5);};
+var clampDay=function(y,m,d){return new Date(y,m,Math.min(d,new Date(y,m+1,0).getDate()));};
+var short=function(d){return d.toLocaleDateString('es-AR',{day:'numeric',month:'short'}).replace('.','');};
+function rel(d){var n=diff(d,now());if(n===0)return 'hoy';if(n===1)return 'mañana';if(n===-1)return 'ayer';return n>1?'en '+n+' días':'hace '+(-n)+' días';}
+function fmt(n,cur){cur=cur==='USD'?'USD':'ARS';var z=cur==='ARS'?0:2;return new Intl.NumberFormat('es-AR',{style:'currency',currency:cur,minimumFractionDigits:z,maximumFractionDigits:z}).format(n||0);}
+function pair(r){if(!r.USD)return fmt(r.ARS,'ARS');if(!r.ARS)return fmt(r.USD,'USD');return fmt(r.ARS,'ARS')+'<small>+ '+fmt(r.USD,'USD')+'</small>';}
+function chip(t,k){return '<span class="chip '+(k||'')+'">'+esc(t)+'</span>';}
+function exChip(x){return x.example?chip('ejemplo','ex'):'';}
+function urg(date){var n=diff(date,now());if(n<0)return chip('Venció '+rel(date),'bad');if(n<=3)return chip('Vence '+rel(date),'warn');return chip('Vence '+rel(date));}
+function toast(msg){var t=$('#toast');t.textContent=msg;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(function(){t.hidden=true;},3200);}
+var notReady=function(c){return !loaded[c]&&!offline;};
+function placeholder(c,msg){return '<p class="empty">'+(offline?'No hay conexión con el guardado. Abrí el panel desde claude.ai para usarlo.':(notReady(c)?'Cargando…':msg))+'</p>';}
+
+/* ---------- derived data ---------- */
+function billDue(b){var t=now(),y=t.getFullYear(),m=t.getMonth(),due=clampDay(y,m,b.day||1),paidNow=!!(b.paid&&b.paid[ym(due)]),i=0;
+  while(b.paid&&b.paid[ym(due)]&&i<24){m++;due=clampDay(y,m,b.day||1);i++;}
+  return {date:due,key:ym(due),paidNow:paidNow};}
+function subNext(s){var t=now(),y=t.getFullYear(),m=t.getMonth(),d;
+  if(s.cycle==='anual'){d=clampDay(y,(s.month||1)-1,s.day||1);if(d<t)d=clampDay(y+1,(s.month||1)-1,s.day||1);}
+  else{d=clampDay(y,m,s.day||1);if(d<t)d=clampDay(y,m+1,s.day||1);}
+  return d;}
+function upcoming(){var items=[],t=now();
+  S.tasks.forEach(function(x){if(!x.done&&x.due)items.push({kind:'task',id:x.id,title:x.title,date:parse(x.due),col:'tasks',x:x});});
+  S.bills.forEach(function(x){var d=billDue(x);if(!d.paidNow||diff(d.date,t)<=7)items.push({kind:'bill',id:x.id,title:x.name,date:d.date,amt:x.amount,cur:x.currency,key:d.key,col:'bills',x:x});});
+  S.statements.forEach(function(x){if(!x.paid&&x.due)items.push({kind:'card',id:x.id,title:x.card,date:parse(x.due),amt:x.amount,usd:x.amountUsd,min:x.minimum,col:'statements',x:x});});
+  S.subs.forEach(function(x){items.push({kind:'sub',id:x.id,title:x.name,date:subNext(x),amt:x.amount,cur:x.currency,col:'subs',x:x});});
+  return items.filter(function(i){return diff(i.date,t)<=7;}).sort(function(a,b){return a.date-b.date;});}
+function streak(h){var d=now(),n=0;if(!(h.days&&h.days[ymd(d)]))d.setDate(d.getDate()-1);while(h.days&&h.days[ymd(d)]){n++;d.setDate(d.getDate()-1);}return n;}
+
+/* ---------- render ---------- */
+var KIND={task:'Tarea',bill:'Servicio',card:'Tarjeta',sub:'Suscripción'};
+function actionFor(i){
+  if(i.kind==='task')return '<button class="btn sm" data-act="toggle-task" data-id="'+esc(i.id)+'">Hecha</button>';
+  if(i.kind==='bill')return '<button class="btn sm" data-act="pay-bill" data-id="'+esc(i.id)+'" data-key="'+i.key+'">Pagado</button>';
+  if(i.kind==='card')return '<button class="btn sm" data-act="pay-stmt" data-id="'+esc(i.id)+'">Pagado</button>';
+  return '';}
+function renderAgenda(){
+  var items=upcoming(),t=now(),html='',last='';
+  if(!items.length){$('#agenda').innerHTML='<li>'+placeholder('tasks','Nada vence hoy ni en los próximos 7 días. Las tareas con fecha, los servicios, las suscripciones y los resúmenes de tarjeta que cargues aparecen acá.')+'</li>';return;}
+  items.forEach(function(i){
+    var n=diff(i.date,t),g=n<0?'Atrasado':(n===0?'Hoy':'Próximos 7 días');
+    if(g!==last){html+='<li class="grp'+(n<0?' over':'')+'">'+g+'</li>';last=g;}
+    var amt='';
+    if(i.kind==='card')amt=pair({ARS:i.amt||0,USD:i.usd||0});
+    else if(i.amt)amt=fmt(i.amt,i.cur);
+    var when=i.kind==='sub'?'Se cobra '+rel(i.date)+' · '+short(i.date):(n<0?'Venció ':'Vence ')+rel(i.date)+' · '+short(i.date);
+    if(i.kind==='task')when=(n<0?'Era para ':'Para ')+rel(i.date)+' · '+short(i.date);
+    html+='<li class="row"><span class="kind k-'+i.kind+'">'+KIND[i.kind]+'</span><div class="grow"><button class="link" data-act="edit" data-col="'+i.col+'" data-id="'+esc(i.id)+'">'+esc(i.title)+'</button>'+exChip(i.x)+'<span class="meta">'+when+'</span></div>'+(amt?'<span class="amt">'+amt+'</span>':'')+actionFor(i)+'</li>';
+  });
+  $('#agenda').innerHTML=html;
+}
+function taskRow(x){
+  var due=x.due?parse(x.due):null,over=due&&!x.done&&diff(due,now())<0;
+  return '<li class="row'+(x.done?' done':'')+'"><button class="check'+(x.done?' on':'')+'" data-act="toggle-task" data-id="'+esc(x.id)+'" aria-label="'+(x.done?'Marcar pendiente':'Marcar hecha')+'"></button>'+
+    '<div class="grow"><button class="link t" data-act="edit" data-col="tasks" data-id="'+esc(x.id)+'">'+esc(x.title)+'</button> '+exChip(x)+'</div>'+
+    (x.prio==='alta'&&!x.done?chip('Alta','bad'):'')+(due?chip(over?'Atrasada · '+short(due):short(due),over?'bad':''):'')+'</li>';}
+function renderTasks(){
+  var rank={alta:0,media:1,baja:2};
+  var open=S.tasks.filter(function(x){return !x.done;}).sort(function(a,b){
+    if(!!a.due!==!!b.due)return a.due?-1:1;
+    if(a.due!==b.due)return a.due<b.due?-1:1;
+    return (rank[a.prio]||1)-(rank[b.prio]||1);});
+  var done=S.tasks.filter(function(x){return x.done;}).sort(function(a,b){return (b.doneAt||0)-(a.doneAt||0);});
+  var html=open.length?open.map(taskRow).join(''):'<li>'+placeholder('tasks','No hay tareas pendientes. Escribí una arriba y apretá Enter.')+'</li>';
+  if(done.length){
+    html+='<li class="row"><button class="btn sm" data-act="toggle-done">'+(showDone?'Ocultar':'Ver')+' hechas ('+done.length+')</button></li>';
+    if(showDone)html+=done.slice(0,10).map(taskRow).join('');
+  }
+  $('#tasklist').innerHTML=html;
+}
+function renderHabits(){
+  var el=$('#habitlist');
+  if(!S.habits.length){el.innerHTML=placeholder('habits','Todavía no hay hábitos. Agregá uno (tomar agua, caminar, leer) y marcalo cada día.');return;}
+  var days=[],i,d;for(i=6;i>=0;i--){d=now();d.setDate(d.getDate()-i);days.push(d);}
+  var head='<div class="hhead"><span></span><span></span>'+days.map(function(d){return '<span>'+'DLMMJVS'[d.getDay()]+'</span>';}).join('')+'</div>';
+  var rows=S.habits.slice().sort(function(a,b){return (a.createdAt||0)-(b.createdAt||0);}).map(function(h){
+    var s=streak(h);
+    return '<div class="hrow"><button class="link" data-act="edit" data-col="habits" data-id="'+esc(h.id)+'">'+esc(h.name)+'</button>'+
+      '<span class="streak">'+(s?'racha '+s:'')+'</span>'+
+      days.map(function(d,k){var key=ymd(d),on=!!(h.days&&h.days[key]);
+        return '<button class="dot'+(on?' on':'')+(k===6?' today':'')+'" data-act="toggle-habit" data-id="'+esc(h.id)+'" data-date="'+key+'" aria-pressed="'+on+'" aria-label="'+esc(h.name)+' '+short(d)+'"></button>';}).join('')+'</div>';
+  }).join('');
+  el.innerHTML=head+rows;
+}
+function renderNotes(){
+  var el=$('#notelist');
+  var list=S.notes.slice().sort(function(a,b){return (b.createdAt||0)-(a.createdAt||0);});
+  el.innerHTML=list.length?list.map(function(n){
+    return '<li class="row"><div class="grow"><button class="link note" data-act="edit" data-col="notes" data-id="'+esc(n.id)+'">'+esc(n.text)+'</button> '+exChip(n)+'<span class="meta">'+(n.createdAt?short(new Date(n.createdAt)):'')+'</span></div></li>';}).join(''):'<li>'+placeholder('notes','Las notas que guardes quedan acá, la más nueva primero.')+'</li>';
+}
+function renderFinance(){
+  var t=now(),cm=ym(t),ar=function(){return {ARS:0,USD:0};};
+  var subs=ar(),bills=ar(),pend=ar(),cardPend=ar(),cardMonth=ar();
+  S.subs.forEach(function(s){subs[s.currency==='USD'?'USD':'ARS']+=(s.amount||0)/(s.cycle==='anual'?12:1);});
+  S.bills.forEach(function(b){var c=b.currency==='USD'?'USD':'ARS';bills[c]+=b.amount||0;if(!(b.paid&&b.paid[cm]))pend[c]+=b.amount||0;});
+  S.statements.forEach(function(s){
+    if(!s.paid){cardPend.ARS+=s.amount||0;cardPend.USD+=s.amountUsd||0;pend.ARS+=s.amount||0;pend.USD+=s.amountUsd||0;}
+    if(s.due&&ym(parse(s.due))===cm)cardMonth.ARS+=s.amount||0;});
+  var has=S.subs.length||S.bills.length||S.statements.length;
+  var el=$('#finsummary');
+  if(!has){el.innerHTML=placeholder('subs','Cuando cargues un resumen de tarjeta, suscripciones o servicios, acá ves cuánto falta pagar y cómo se reparte el mes.');return;}
+  var tile=function(l,v,c){return '<div class="tile '+(c||'')+'"><span>'+l+'</span><b>'+pair(v)+'</b></div>';};
+  var parts=[['Suscripciones',subs.ARS,'--c-sub'],['Servicios',bills.ARS,'--c-bill'],['Tarjeta (vence este mes)',cardMonth.ARS,'--c-card']];
+  var tot=parts.reduce(function(a,p){return a+p[1];},0);
+  var bar=tot?'<p class="sub" style="margin-top:4px">Reparto del mes en pesos</p><div class="bar" role="img" aria-label="Reparto del mes">'+parts.filter(function(p){return p[1]>0;}).map(function(p){return '<i style="width:'+(p[1]/tot*100)+'%;background:var('+p[2]+')" title="'+p[0]+'"></i>';}).join('')+'</div><div class="legend">'+parts.map(function(p){return '<span style="--lc:var('+p[2]+')">'+p[0]+'<b>'+fmt(p[1],'ARS')+'</b></span>';}).join('')+'</div>':'';
+  el.innerHTML='<div class="tiles">'+tile('Falta pagar',pend,'lead')+tile('Tarjeta pendiente',cardPend)+tile('Suscripciones por mes',subs)+tile('Servicios por mes',bills)+'</div>'+bar;
+}
+function renderStatements(){
+  var el=$('#stmts');
+  if(!S.statements.length){el.innerHTML=placeholder('statements','Cargá el resumen de cada tarjeta con su cierre, vencimiento y total. Te avisa cuánto falta para pagarlo.');return;}
+  var unpaid=S.statements.filter(function(s){return !s.paid;}).sort(function(a,b){return (a.due||'')<(b.due||'')?-1:1;});
+  var paid=S.statements.filter(function(s){return s.paid;}).sort(function(a,b){return (a.due||'')<(b.due||'')?1:-1;}).slice(0,3);
+  el.innerHTML='<div class="cards">'+unpaid.concat(paid).map(function(s){
+    var due=s.due?parse(s.due):null,clo=s.closing?parse(s.closing):null;
+    return '<div class="cc'+(s.paid?' paid':'')+'"><div><button class="link name" data-act="edit" data-col="statements" data-id="'+esc(s.id)+'">'+esc(s.card)+'</button> '+exChip(s)+'</div>'+
+      '<div class="big">'+pair({ARS:s.amount||0,USD:s.amountUsd||0}).replace('<small>','<small>')+'</div>'+
+      '<span class="meta">'+(clo?'Cierre '+short(clo)+' · ':'')+(due?'Vence '+short(due):'')+(s.minimum?' · Mínimo '+fmt(s.minimum,'ARS'):'')+'</span>'+
+      '<div class="foot">'+(s.paid?chip('Pagado','good'):(due?urg(due):''))+'<button class="btn sm" data-act="pay-stmt" data-id="'+esc(s.id)+'">'+(s.paid?'Deshacer':'Marcar pagado')+'</button></div></div>';}).join('')+'</div>';
+}
+function renderSubs(){
+  var el=$('#sublist');
+  if(!S.subs.length){el.innerHTML='<li>'+placeholder('subs','Agregá Netflix, Spotify, el celular o lo que se cobre solo. Ves la fecha del próximo cobro y el total por mes.')+'</li>';return;}
+  el.innerHTML=S.subs.slice().sort(function(a,b){return subNext(a)-subNext(b);}).map(function(s){
+    var n=subNext(s),anual=s.cycle==='anual';
+    return '<li class="row"><div class="grow"><button class="link" data-act="edit" data-col="subs" data-id="'+esc(s.id)+'">'+esc(s.name)+'</button> '+exChip(s)+'<span class="meta">Próximo cobro '+short(n)+' ('+rel(n)+')'+(s.method?' · '+esc(s.method):'')+'</span></div>'+
+      '<span class="amt">'+fmt(s.amount,s.currency)+'<small>'+(anual?'por año':'por mes')+'</small></span></li>';}).join('');
+}
+function renderBills(){
+  var el=$('#billlist');
+  if(!S.bills.length){el.innerHTML='<li>'+placeholder('bills','Agregá luz, gas, agua, internet, expensas. Marcás cada uno como pagado y el mes siguiente vuelve a quedar pendiente.')+'</li>';return;}
+  el.innerHTML=S.bills.slice().sort(function(a,b){return billDue(a).date-billDue(b).date;}).map(function(b){
+    var d=billDue(b),st=b.paid&&b.paid[ym(now())];
+    var status=st?chip('Pagado este mes','good'):urg(d.date);
+    var btn=st?'<button class="btn sm" data-act="unpay-bill" data-id="'+esc(b.id)+'" data-key="'+ym(now())+'">Deshacer</button>':'<button class="btn sm" data-act="pay-bill" data-id="'+esc(b.id)+'" data-key="'+d.key+'">Pagado</button>';
+    return '<li class="row'+(st?' done':'')+'"><div class="grow"><button class="link t" data-act="edit" data-col="bills" data-id="'+esc(b.id)+'">'+esc(b.name)+'</button> '+exChip(b)+'<span class="meta">Vence el '+(b.day||1)+' de cada mes'+(b.note?' · '+esc(b.note):'')+'</span></div>'+status+'<span class="amt">'+fmt(b.amount,b.currency)+'</span>'+btn+'</li>';}).join('');
+}
+function renderHeader(){
+  var t=new Date(),h=t.getHours();
+  $('#hello').textContent=h<6?'Buenas noches':(h<13?'Buen día':(h<20?'Buenas tardes':'Buenas noches'));
+  var s=t.toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'});
+  $('#dateline').textContent=s.charAt(0).toUpperCase()+s.slice(1);
+  var today=ymd(now()),tt=S.tasks.filter(function(x){return x.due===today;}),td=tt.filter(function(x){return x.done;}).length;
+  var hd=S.habits.filter(function(x){return x.days&&x.days[today];}).length;
+  var week=upcoming().filter(function(i){return i.kind!=='sub'&&i.kind!=='task';}).length;
+  $('#tstats').innerHTML=
+    '<div class="tstat"><b>'+td+'/'+tt.length+'</b><span>tareas de hoy</span></div>'+
+    '<div class="tstat"><b>'+hd+'/'+S.habits.length+'</b><span>hábitos de hoy</span></div>'+
+    '<div class="tstat"><b>'+week+'</b><span>pagos esta semana</span></div>';
+  var ex=0;COLS.forEach(function(c){S[c].forEach(function(x){if(x.example)ex++;});});
+  $('#banner').innerHTML=ex?'<div class="banner"><p>Estás viendo datos de ejemplo para que veas cómo queda. Tocá cualquier ítem para cambiarlo por el tuyo, o borrá todos los ejemplos juntos.</p><button class="btn sm danger" data-act="clear-examples">Borrar ejemplos</button></div>':
+    (offline?'<div class="banner"><p>No hay conexión con el guardado, así que no se puede leer ni guardar nada. Abrí el panel desde claude.ai con tu cuenta.</p></div>':'');
+}
+function render(){
+  if(pending)return;pending=true;
+  requestAnimationFrame(function(){pending=false;
+    renderHeader();renderAgenda();renderTasks();renderHabits();renderNotes();renderFinance();renderStatements();renderSubs();renderBills();});
+}
+
+/* ---------- forms ---------- */
+var CUR=[['ARS','Pesos'],['USD','Dólares']];
+var MONTHS=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'].map(function(m,i){return [String(i+1),m];});
+var SCHEMA={
+  tasks:{label:'tarea',defaults:{done:false,prio:'media'},fields:[
+    {k:'title',l:'Qué hay que hacer',t:'text',req:1},{k:'due',l:'Fecha límite',t:'date'},
+    {k:'prio',l:'Prioridad',t:'select',o:[['alta','Alta'],['media','Media'],['baja','Baja']]}]},
+  habits:{label:'hábito',defaults:{days:{}},fields:[{k:'name',l:'Nombre del hábito',t:'text',req:1}]},
+  statements:{label:'resumen de tarjeta',defaults:{paid:false},fields:[
+    {k:'card',l:'Tarjeta (ej. Visa Galicia)',t:'text',req:1},{k:'closing',l:'Fecha de cierre',t:'date'},{k:'due',l:'Fecha de vencimiento',t:'date',req:1},
+    {k:'amount',l:'Total en pesos',t:'number'},{k:'amountUsd',l:'Total en dólares',t:'number'},{k:'minimum',l:'Pago mínimo en pesos',t:'number'}]},
+  subs:{label:'suscripción',defaults:{currency:'ARS',cycle:'mensual'},fields:[
+    {k:'name',l:'Nombre',t:'text',req:1},{k:'amount',l:'Monto',t:'number',req:1},{k:'currency',l:'Moneda',t:'select',o:CUR},
+    {k:'cycle',l:'Se cobra',t:'select',o:[['mensual','Todos los meses'],['anual','Una vez por año']]},
+    {k:'month',l:'Mes del cobro anual',t:'select',o:MONTHS,showIf:['cycle','anual']},
+    {k:'day',l:'Día del cobro (1 a 31)',t:'number',req:1,min:1,max:31},{k:'method',l:'Se paga con',t:'text'}]},
+  bills:{label:'servicio',defaults:{currency:'ARS',paid:{}},fields:[
+    {k:'name',l:'Servicio (luz, gas, internet…)',t:'text',req:1},{k:'amount',l:'Monto aproximado',t:'number'},{k:'currency',l:'Moneda',t:'select',o:CUR},
+    {k:'day',l:'Día de vencimiento (1 a 31)',t:'number',req:1,min:1,max:31},{k:'note',l:'Nota (ej. número de cliente)',t:'text'}]},
+  notes:{label:'nota',defaults:{},fields:[{k:'text',l:'Nota',t:'textarea',req:1}]}
+};
+var dlg=$('#dlg'),form=$('#form'),armed=false;
+function fieldHtml(f,v){
+  var id='f-'+f.k,val=v==null?'':v,input;
+  if(f.t==='select')input='<select id="'+id+'">'+f.o.map(function(o){return '<option value="'+o[0]+'"'+(String(val)===o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select>';
+  else if(f.t==='textarea')input='<textarea id="'+id+'" rows="4"'+(f.req?' required':'')+'>'+esc(val)+'</textarea>';
+  else input='<input id="'+id+'" type="'+(f.t==='number'?'number':f.t)+'" value="'+esc(val)+'"'+(f.t==='number'?' step="any" inputmode="decimal"'+(f.min?' min="'+f.min+'" max="'+f.max+'"':''):'')+(f.req?' required':'')+(f.t==='text'?' autocomplete="off"':'')+'>';
+  return '<label data-field="'+f.k+'"'+(f.showIf?' data-showif="'+f.showIf[0]+'='+f.showIf[1]+'"':'')+'>'+esc(f.l)+input+'</label>';}
+function syncShowIf(){form.querySelectorAll('[data-showif]').forEach(function(l){var p=l.dataset.showif.split('='),c=form.querySelector('#f-'+p[0]);l.hidden=!c||c.value!==p[1];});}
+function openForm(col,id){
+  var sch=SCHEMA[col],cur=id?S[col].find(function(x){return x.id===id;}):null;
+  if(id&&!cur)return;
+  var base=Object.assign({},sch.defaults,cur||{});
+  armed=false;
+  form.dataset.col=col;form.dataset.id=id||'';
+  form.innerHTML='<h3>'+(id?'Editar ':'Nuevo ')+sch.label+'</h3>'+sch.fields.map(function(f){return fieldHtml(f,base[f.k]);}).join('')+
+    '<div class="actions">'+(id?'<button type="button" class="btn danger" data-act="delete">Eliminar</button>':'')+'<span class="spacer"></span><button type="button" class="btn" data-act="close">Cancelar</button><button type="submit" class="btn primary">Guardar</button></div>';
+  syncShowIf();
+  dlg.showModal();
+}
+form.addEventListener('change',syncShowIf);
+form.addEventListener('submit',function(e){
+  e.preventDefault();
+  var col=form.dataset.col,id=form.dataset.id,sch=SCHEMA[col],data={};
+  sch.fields.forEach(function(f){var el=form.querySelector('#f-'+f.k),v=el.value;
+    if(f.t==='number'){v=v===''?0:Number(v);if(f.k==='day')v=Math.min(31,Math.max(1,Math.round(v)||1));}
+    if(f.k==='month')v=Number(v);
+    if(typeof v==='string')v=v.trim();
+    data[f.k]=v;});
+  if(col==='subs'&&data.cycle!=='anual')delete data.month;
+  save(col,id,data).then(function(){dlg.close();toast(id?'Cambios guardados':'Agregado');}).catch(function(err){toast('No se pudo guardar'+(err&&err.code?' ('+err.code+')':''));});
+});
+dlg.addEventListener('click',function(e){if(e.target===dlg)dlg.close();});
+
+/* ---------- writes ---------- */
+function need(){if(!db){toast('Sin conexión con el guardado');return false;}return true;}
+function save(col,id,data){
+  if(!need())return Promise.reject({code:'offline'});
+  var c=db.collection(col);
+  if(id){var u=Object.assign({},data,{example:false});return c.doc(id).update(u);}
+  return c.doc().set(Object.assign({},SCHEMA[col].defaults,data,{createdAt:Date.now()}));
+}
+function find(col,id){return S[col].find(function(x){return x.id===id;});}
+function write(p){return p.catch(function(err){toast('No se pudo guardar'+(err&&err.code?' ('+err.code+')':''));});}
+function clearExamples(){
+  if(!need())return;
+  var jobs=[];COLS.forEach(function(c){S[c].forEach(function(x){if(x.example)jobs.push([c,x.id]);});});
+  jobs.reduce(function(p,j){return p.then(function(){return db.collection(j[0]).doc(j[1]).delete();});},Promise.resolve()).then(function(){toast('Ejemplos borrados');}).catch(function(){toast('No se pudieron borrar todos');});
+}
+
+document.addEventListener('click',function(e){
+  var go=e.target.closest('[data-go]');
+  if(go){var el=document.getElementById(go.dataset.go);if(el)el.scrollIntoView({behavior:'smooth',block:'start'});return;}
+  var b=e.target.closest('[data-act]');if(!b)return;
+  var a=b.dataset.act,id=b.dataset.id,col=b.dataset.col,x;
+  if(a==='add')return openForm(col,'');
+  if(a==='edit')return openForm(col,id);
+  if(a==='close'){dlg.close();return;}
+  if(a==='delete'){
+    if(!armed){armed=true;b.textContent='¿Seguro? Tocá de nuevo';return;}
+    if(!need())return;
+    var dc=form.dataset.col,di=form.dataset.id;
+    write(db.collection(dc).doc(di).delete().then(function(){dlg.close();toast('Eliminado');}));return;}
+  if(a==='toggle-done'){showDone=!showDone;render();return;}
+  if(a==='clear-examples')return clearExamples();
+  if(!need())return;
+  if(a==='toggle-task'){x=find('tasks',id);if(x)write(db.collection('tasks').doc(id).update({done:!x.done,doneAt:x.done?0:Date.now()}));}
+  else if(a==='pay-bill'){var o={};o[b.dataset.key]=true;write(db.collection('bills').doc(id).update({paid:o}));}
+  else if(a==='unpay-bill'){var o2={};o2[b.dataset.key]=false;write(db.collection('bills').doc(id).update({paid:o2}));}
+  else if(a==='pay-stmt'){x=find('statements',id);if(x)write(db.collection('statements').doc(id).update({paid:!x.paid}));}
+  else if(a==='toggle-habit'){x=find('habits',id);if(x){var dd={};dd[b.dataset.date]=!(x.days&&x.days[b.dataset.date]);write(db.collection('habits').doc(id).update({days:dd}));}}
+});
+
+$('#taskform').addEventListener('submit',function(e){
+  e.preventDefault();var t=$('#task-title').value.trim();if(!t||!need())return;
+  var due=$('#task-due').value;
+  write(db.collection('tasks').doc().set({title:t,due:due||'',prio:'media',done:false,createdAt:Date.now()}).then(function(){$('#task-title').value='';$('#task-due').value='';}));
+});
+$('#noteform').addEventListener('submit',function(e){
+  e.preventDefault();var t=$('#note-text').value.trim();if(!t||!need())return;
+  write(db.collection('notes').doc().set({text:t,createdAt:Date.now()}).then(function(){$('#note-text').value='';}));
+});
+
+/* ---------- start ---------- */
+(async function init(){
+  render();
+  try{db=window.claude&&window.claude.use?await window.claude.use('db'):null;}catch(e){db=null;}
+  if(!db){offline=true;render();return;}
+  COLS.forEach(function(c){
+    db.collection(c).onSnapshot(function(snap){
+      S[c]=snap.docs.map(function(d){return Object.assign({id:d.id},d.data());});
+      loaded[c]=true;render();
+    },function(){offline=true;toast('No se pudo leer '+c);render();});
+  });
+})();
+setInterval(function(){render();},60*60*1000);
+})();
+</script>
