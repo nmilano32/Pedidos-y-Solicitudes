@@ -198,7 +198,8 @@ dialog::backdrop{background:rgba(8,16,14,.6)}
 
     <div class="col">
       <section class="panel" id="finanzas">
-        <div class="ph"><h2>Finanzas del mes</h2></div>
+        <div class="ph"><h2>Finanzas del mes</h2><div class="calstate" id="gmstate"></div></div>
+        <div id="gmailbox"></div>
         <div id="finsummary"></div>
       </section>
 
@@ -400,7 +401,7 @@ function renderHeader(){
 function render(){
   if(pending)return;pending=true;
   requestAnimationFrame(function(){pending=false;
-    renderHeader();renderCalState();renderAgenda();renderTasks();renderHabits();renderNotes();renderFinance();renderStatements();renderSubs();renderBills();});
+    renderHeader();renderCalState();renderGmail();renderAgenda();renderTasks();renderHabits();renderNotes();renderFinance();renderStatements();renderSubs();renderBills();});
 }
 
 /* ---------- forms ---------- */
@@ -432,10 +433,10 @@ function fieldHtml(f,v){
   else input='<input id="'+id+'" type="'+(f.t==='number'?'number':f.t)+'" value="'+esc(val)+'"'+(f.t==='number'?' step="any" inputmode="decimal"'+(f.min?' min="'+f.min+'" max="'+f.max+'"':''):'')+(f.req?' required':'')+(f.t==='text'?' autocomplete="off"':'')+'>';
   return '<label data-field="'+f.k+'"'+(f.showIf?' data-showif="'+f.showIf[0]+'='+f.showIf[1]+'"':'')+'>'+esc(f.l)+input+'</label>';}
 function syncShowIf(){form.querySelectorAll('[data-showif]').forEach(function(l){var p=l.dataset.showif.split('='),c=form.querySelector('#f-'+p[0]);l.hidden=!c||c.value!==p[1];});}
-function openForm(col,id){
+function openForm(col,id,pre){
   var sch=SCHEMA[col],cur=id?S[col].find(function(x){return x.id===id;}):null;
   if(id&&!cur)return;
-  var base=Object.assign({},sch.defaults,cur||{});
+  var base=Object.assign({},sch.defaults,cur||pre||{});
   armed=false;
   form.dataset.col=col;form.dataset.id=id||'';
   form.innerHTML='<h3>'+(id?'Editar ':'Nuevo ')+sch.label+'</h3>'+sch.fields.map(function(f){return fieldHtml(f,base[f.k]);}).join('')+
@@ -496,11 +497,16 @@ document.addEventListener('click',function(e){
   if(a==='clear-examples')return clearExamples();
   if(a==='cal-reload')return loadCalendar();
   if(a==='wx-reload')return loadWeather();
+  if(a==='gm-scan')return scanGmail();
   if(!need())return;
   if(a==='mail-done'){
     saveMailPrefs();
     write(db.collection('notified').doc(mail.key).set({at:Date.now(),title:mail.ev.title}).then(function(){mdlg.close();toast('Marcado como avisado');}));return;}
   if(a==='unnotify'){write(db.collection('notified').doc(id).delete());return;}
+  if(a==='gm-add'||a==='gm-skip'){
+    var it=gm.items.find(function(z){return z.key===b.dataset.key;});if(!it)return;
+    if(a==='gm-skip'){write(gmDismiss(it.key));return;}
+    gmAdd(it);return;}
   if(a==='note-notion'){x=find('notes',id);if(x)sendNote(id,x.text);return;}
   if(a==='toggle-task'){x=find('tasks',id);if(x)write(db.collection('tasks').doc(id).update({done:!x.done,doneAt:x.done?0:Date.now()}));}
   else if(a==='pay-bill'){var o={};o[b.dataset.key]=true;write(db.collection('bills').doc(id).update({paid:o}));}
@@ -519,6 +525,106 @@ $('#noteform').addEventListener('submit',function(e){
   var toNotion=$('#note-notion').checked,ref=db.collection('notes').doc();
   write(ref.set({text:t,createdAt:Date.now()}).then(function(){$('#note-text').value='';$('#note-notion').checked=false;if(toNotion)return sendNote(ref.id,t);}));
 });
+
+/* ---------- Gmail: vencimientos ---------- */
+var GM='Gmail';
+var GM_Q='from:(mails.santander.com.ar OR email.personal.com.ar OR facturas.edesur.com.ar OR metrogas.com.ar OR marketing.centrodeelearning.com OR colppy.com) subject:(vence OR vencimiento OR factura OR resumen OR cuota OR deuda) newer_than:45d';
+var gm={status:'idle',items:[],at:0,err:null};
+var GM_MSG={not_in_manifest:'Gmail no está permitido para este panel.',server_not_connected:'Conectá Gmail en Configuración → Conectores.',needs_reauth:'Volvé a conectar Gmail en Configuración → Conectores.',blocked_by_policy:'Tu organización bloquea Gmail.',approval_required:'Gmail necesita tu aprobación.'};
+var amtNum=function(s){s=String(s).trim().replace(/[.,]+$/,'');return /,\d{1,2}$/.test(s)?parseFloat(s.replace(/\./g,'').replace(',','.')):parseFloat(s.replace(/,/g,''));};
+var dmy=function(s){var p=s.split(/[\/-]/).map(Number);return p[0]>31?new Date(p[0],p[1]-1,p[2]):new Date(p[2],p[1]-1,p[0]);};
+var plain=function(t){try{return new DOMParser().parseFromString(String(t||''),'text/html').documentElement.textContent;}catch(e){return String(t||'');}};
+var slug=function(t){return String(t).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,80);};
+function gmSrc(sender){sender=String(sender||'').toLowerCase();
+  var map=[['santander','santander'],['personal.com.ar','personal'],['edesur','edesur'],['metrogas','metrogas'],['centrodeelearning','elearning'],['colppy','colppy']];
+  for(var i=0;i<map.length;i++)if(sender.indexOf(map[i][0])>=0)return map[i][1];return '';}
+function gmParse(src,m,body){
+  var t=plain(body).replace(/\s+/g,' '),x,base={link:m.viewUrl||'',when:Number(m.internalDate)||Date.now()};
+  if(src==='santander'){
+    if(!/vence/i.test(m.subject||''))return null;
+    x=/Tarjeta Santander (.+?) terminada en (\d{4}) vence el (\d{2}\/\d{2}\/\d{4})/.exec(t);if(!x)return null;
+    var pe=/Monto en pesos \$\s*([\d.,]+)/.exec(t),us=/Monto en d[óo]lares U\$S\s*([\d.,]+)/.exec(t);
+    return Object.assign(base,{kind:'statement',title:'Santander '+x[1]+' ·'+x[2],last4:x[2],due:dmy(x[3]),amount:pe?amtNum(pe[1]):0,usd:us?amtNum(us[1]):0});}
+  if(src==='personal'){
+    var a=/Total a debitar \$\s*([\d.,]+)/.exec(t),d=/Fecha de vencimiento:\s*(\d{2}-\d{2}-\d{4})/.exec(t);if(!a||!d)return null;
+    return Object.assign(base,{kind:'bill',title:'Personal Flow',alias:['personal','celular','internet'],due:dmy(d[1]),amount:amtNum(a[1]),note:'Débito automático'});}
+  if(src==='edesur'){
+    x=/vencimiento el d[ií]a\s*(\d{2}\/\d{2}\/\d{4})[^$]*\$\s*([\d.,]+)/.exec(t);if(!x)return null;
+    return Object.assign(base,{kind:'bill',title:'Edesur (luz)',alias:['edesur','luz'],due:dmy(x[1]),amount:amtNum(x[2]),note:''});}
+  return null;}
+function gmFromSnippet(src,m){
+  var sn=m.snippet||'',x,base={link:m.viewUrl||'',when:Number(m.internalDate)||Date.now(),due:null};
+  if(src==='colppy'){x=/por \$\s*([\d.,]+)\s*con vencimiento\s*(\d{4}-\d{2}-\d{2})/.exec(sn);
+    if(x)return Object.assign(base,{kind:'bill',title:'Coderhouse',alias:['coderhouse'],due:dmy(x[2]),amount:amtNum(x[1]),note:'Factura'});
+    return Object.assign(base,{kind:'manual',title:'Coderhouse'});}
+  if(src==='metrogas'){x=/(\d{8,})/.exec(m.subject||'');return Object.assign(base,{kind:'manual',title:'Metrogas'+(x?' (cliente …'+x[1].slice(-4)+')':'')});}
+  if(src==='elearning')return Object.assign(base,{kind:'manual',title:'Cuota del curso'});
+  return null;}
+async function inBatches(jobs,n){for(var i=0;i<jobs.length;i+=n)await Promise.all(jobs.slice(i,i+n).map(function(j){return j();}));}
+async function scanGmail(){
+  if(!mcp||gm.status==='loading')return;
+  gm.status='loading';renderGmail();
+  try{
+    var r=await mcp.callTool(GM,'search_threads',{query:GM_Q,pageSize:30},{cache:false});
+    var threads=(r.payload&&r.payload.threads)||[],out=[],jobs=[],n=0;
+    threads.forEach(function(t){
+      var m=t.messages&&t.messages[t.messages.length-1];if(!m)return;
+      var src=gmSrc(m.sender);if(!src)return;
+      if(src==='santander'||src==='personal'||src==='edesur'){
+        if(n++>=14)return;
+        jobs.push(function(){return mcp.callTool(GM,'get_thread',{threadId:t.id,messageFormat:'PLAIN_TEXT'},{cache:false}).then(function(res){
+          var th=res.payload,mm=th&&th.messages&&th.messages[th.messages.length-1],it=mm&&gmParse(src,m,mm.plaintextBody);if(it)out.push(it);},function(){});});
+      }else{var it=gmFromSnippet(src,m);if(it)out.push(it);}
+    });
+    await inBatches(jobs,4);
+    var t0=now(),seen={},items=[];
+    out.sort(function(a,b){return b.when-a.when;}).forEach(function(it){
+      if(it.due&&it.due<t0)return;
+      if(!it.due&&diff(t0,new Date(it.when))>25)return;
+      it.key=slug(it.kind+'-'+it.title+'-'+(it.due?ymd(it.due):'x'));
+      var dk=it.due?it.key+'-'+it.amount:slug(it.title);
+      if(seen[dk])return;seen[dk]=1;items.push(it);});
+    items.sort(function(a,b){return (a.due?a.due.getTime():9e15)-(b.due?b.due.getTime():9e15);});
+    gm={status:'ok',items:items,at:Date.now(),err:null};
+  }catch(e){gm.status='error';gm.err=e||{};}
+  render();
+}
+function gmBill(it){var al=it.alias||[it.title.toLowerCase().split(' ')[0]];
+  return S.bills.find(function(b){var nm=String(b.name).toLowerCase();return al.some(function(k){return nm.indexOf(k)>=0;});});}
+function gmVisible(){
+  var dis=(find('settings','gmail')||{}).dismissed||{};
+  return gm.items.filter(function(it){
+    if(dis[it.key])return false;
+    if(it.kind==='statement'&&S.statements.some(function(s){return s.due===ymd(it.due)&&String(s.card).indexOf(it.last4)>=0;}))return false;
+    return true;});}
+function gmDismiss(key){var d=Object.assign({},(find('settings','gmail')||{}).dismissed||{});d[key]=true;return db.collection('settings').doc('gmail').set({dismissed:d});}
+function gmAdd(it){
+  if(!need())return;
+  var p;
+  if(it.kind==='statement')p=db.collection('statements').doc().set({card:it.title,closing:'',due:ymd(it.due),amount:it.amount,amountUsd:it.usd,minimum:0,paid:false,createdAt:Date.now()});
+  else if(it.kind==='bill'){var b=gmBill(it);
+    p=b?db.collection('bills').doc(b.id).update({amount:it.amount,example:false}):db.collection('bills').doc().set({name:it.title,amount:it.amount,currency:'ARS',day:it.due.getDate(),note:it.note||'',paid:{},createdAt:Date.now()});}
+  else{openForm('bills','',{name:it.title,currency:'ARS',paid:{}});return;}
+  write(p.then(function(){toast('Cargado');return gmDismiss(it.key);}));
+}
+function renderGmail(){
+  var st=$('#gmstate'),box=$('#gmailbox');if(!st||!box)return;
+  if(!mcp){st.innerHTML='';box.innerHTML='';return;}
+  st.className='calstate';
+  if(gm.status==='idle'){st.innerHTML='<button class="btn sm" data-act="gm-scan">Buscar vencimientos en Gmail</button>';box.innerHTML='';return;}
+  if(gm.status==='loading'){st.textContent='Revisando Gmail…';return;}
+  if(gm.status==='error'){st.className='calstate err';st.innerHTML='<span>'+esc(GM_MSG[gm.err.code]||'No se pudo leer Gmail.')+'</span><button class="btn sm" data-act="gm-scan">Reintentar</button>';box.innerHTML='';return;}
+  st.innerHTML='<span>Gmail · '+new Date(gm.at).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})+' h</span><button class="btn sm" data-act="gm-scan">Buscar de nuevo</button>';
+  var vis=gmVisible();
+  if(!vis.length){box.innerHTML='<p class="empty">No hay vencimientos nuevos en tus mails de los últimos 45 días.</p>';return;}
+  box.innerHTML='<p class="sub">Encontré esto en tus mails. Revisalo y agregalo si está bien.</p><ul class="list" style="margin-bottom:16px">'+vis.map(function(it){
+    var kind=it.kind==='statement'?['card','Tarjeta']:(it.kind==='bill'?['bill','Servicio']:['bill','Revisar']);
+    var amt=it.kind==='statement'?pair({ARS:it.amount,USD:it.usd}):(it.kind==='bill'?fmt(it.amount,'ARS'):'');
+    var b=it.kind==='bill'?gmBill(it):null;
+    var act=it.kind==='manual'?'Cargar a mano':(b?'Actualizar monto de '+b.name:'Agregar');
+    var meta=(it.due?'Vence '+rel(it.due)+' · '+short(it.due):'No pude leer monto ni fecha')+' · mail del '+short(new Date(it.when))+(it.link?' · <a class="link" href="'+esc(it.link)+'" target="_blank" rel="noopener">ver mail</a>':'');
+    return '<li class="row"><span class="kind k-'+kind[0]+'">'+kind[1]+'</span><div class="grow"><span class="t">'+esc(it.title)+'</span><span class="meta">'+meta+'</span></div>'+(amt?'<span class="amt">'+amt+'</span>':'')+'<button class="btn sm primary" data-act="gm-add" data-key="'+esc(it.key)+'">'+esc(act)+'</button><button class="btn sm" data-act="gm-skip" data-key="'+esc(it.key)+'">Descartar</button></li>';}).join('')+'</ul>';
+}
 
 /* ---------- clima (AccuWeather) ---------- */
 var WX='AccuWeather',LOC={key:'1228547',name:'Buenos Aires'};
