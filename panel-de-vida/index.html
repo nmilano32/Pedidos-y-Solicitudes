@@ -157,6 +157,7 @@ dialog::backdrop{background:rgba(8,16,14,.6)}
 main{display:flex;flex-direction:column;gap:16px}
 .view{display:flex;flex-direction:column;gap:16px}
 .view[hidden],[data-subview][hidden]{display:none!important}
+.foot{margin:24px 0 0;text-align:center}
 .tstats{display:flex;flex-wrap:wrap;gap:8px 32px;padding-inline:2px}
 .focus{background:var(--accent-soft);border-radius:12px;padding:22px}
 .focus .eyebrow{margin-bottom:10px}
@@ -280,6 +281,7 @@ main{display:flex;flex-direction:column;gap:16px}
       </div>
     </section>
   </main>
+  <p class="foot"><button class="btn sm" data-act="perm-manage">Permisos de conexiones</button></p>
 </div>
 
 <dialog id="dlg"><form id="form" method="dialog"></form></dialog>
@@ -629,6 +631,7 @@ document.addEventListener('click',function(e){
   if(a==='clear-examples')return clearExamples();
   if(a==='cal-reload')return loadCalendar();
   if(a==='wx-reload')return loadWeather();
+  if(a==='perm-manage'){getPerm().then(function(pp){if(!pp)throw 0;return pp.manage();}).catch(function(){toast('Abrí el menú Permisos de esta página y activá Gmail.');});return;}
   if(a==='gm-scan')return scanGmail();
   if(a==='focus-start'){x=find('tasks',id);if(x){fo={end:Date.now()+25*60000,title:x.title};render();}return;}
   if(a==='focus-stop'){fo.end=0;render();return;}
@@ -664,7 +667,7 @@ $('#noteform').addEventListener('submit',function(e){
 var GM='Gmail';
 var GM_Q='from:(mails.santander.com.ar OR email.personal.com.ar OR facturas.edesur.com.ar OR metrogas.com.ar OR marketing.centrodeelearning.com OR colppy.com) subject:(vence OR vencimiento OR factura OR resumen OR cuota OR deuda) newer_than:45d';
 var gm={status:'idle',items:[],at:0,err:null};
-var GM_MSG={not_in_manifest:'Gmail no está permitido para este panel.',server_not_connected:'Conectá Gmail en Configuración → Conectores.',needs_reauth:'Volvé a conectar Gmail en Configuración → Conectores.',blocked_by_policy:'Tu organización bloquea Gmail.',approval_required:'Gmail necesita tu aprobación.'};
+var GM_MSG={not_in_manifest:'Falta el permiso para leer Gmail. Tocá Abrir permisos y activá Gmail.',server_not_connected:'Conectá Gmail en Configuración → Conectores.',needs_reauth:'Volvé a conectar Gmail en Configuración → Conectores.',blocked_by_policy:'Tu organización bloquea Gmail.',approval_required:'Gmail necesita tu aprobación.'};
 var amtNum=function(s){s=String(s).trim().replace(/[.,]+$/,'');return /,\d{1,2}$/.test(s)?parseFloat(s.replace(/\./g,'').replace(',','.')):parseFloat(s.replace(/,/g,''));};
 var dmy=function(s){var p=s.split(/[\/-]/).map(Number);return p[0]>31?new Date(p[0],p[1]-1,p[2]):new Date(p[2],p[1]-1,p[0]);};
 var plain=function(t){try{return new DOMParser().parseFromString(String(t||''),'text/html').documentElement.textContent;}catch(e){return String(t||'');}};
@@ -699,6 +702,7 @@ async function scanGmail(){
   if(!mcp||gm.status==='loading')return;
   gm.status='loading';renderGmail();
   try{
+    if(await ensureMcp(GM)==='denied')throw {code:'not_in_manifest'};
     var r=await mcp.callTool(GM,'search_threads',{query:GM_Q,pageSize:30},{cache:false});
     var threads=(r.payload&&r.payload.threads)||[],out=[],jobs=[],n=0;
     threads.forEach(function(t){
@@ -747,7 +751,7 @@ function renderGmail(){
   st.className='calstate';
   if(gm.status==='idle'){st.innerHTML='<button class="btn sm" data-act="gm-scan">Buscar vencimientos en Gmail</button>';box.innerHTML='';return;}
   if(gm.status==='loading'){st.textContent='Revisando Gmail…';return;}
-  if(gm.status==='error'){st.className='calstate err';st.innerHTML='<span>'+esc(GM_MSG[gm.err.code]||'No se pudo leer Gmail.')+'</span><button class="btn sm" data-act="gm-scan">Reintentar</button>';box.innerHTML='';return;}
+  if(gm.status==='error'){st.className='calstate err';st.innerHTML='<span>'+esc(GM_MSG[gm.err.code]||'No se pudo leer Gmail.')+'</span><button class="btn sm" data-act="gm-scan">Reintentar</button>'+permBtn(gm.err.code);box.innerHTML='';return;}
   st.innerHTML='<span>Gmail · '+new Date(gm.at).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',hour12:false})+' h</span><button class="btn sm" data-act="gm-scan">Buscar de nuevo</button>';
   var vis=gmVisible();
   if(!vis.length){box.innerHTML='<p class="empty">No hay vencimientos nuevos en tus mails de los últimos 45 días.</p>';return;}
@@ -794,7 +798,7 @@ function renderWeather(){
   var d=live?wx:(snap&&snap.days&&snap.loc===LOC.key?{cur:snap.cur,days:snap.days,at:snap.at}:null);
   var today=ymd(now()),days=d?d.days.filter(function(x){return x.date>=today;}):[];
   if(!d||!days.length){
-    el.innerHTML=wx.status==='error'?'<span class="meta">'+esc(WX_MSG[wx.err.code]||('No se pudo leer el clima'+(wx.err.code?' ('+wx.err.code+')':'')+'.'))+'</span><button class="btn sm" data-act="wx-reload">Reintentar</button>':'';return;}
+    el.innerHTML=wx.status==='error'?'<span class="meta">'+esc(WX_MSG[wx.err.code]||('No se pudo leer el clima'+(wx.err.code?' ('+wx.err.code+')':'')+'.'))+'</span><button class="btn sm" data-act="wx-reload">Reintentar</button>'+permBtn(wx.err.code):'';return;}
   var t=days[0],isToday=t.date===today,fresh=live||(d.at&&ymd(new Date(d.at))===today);
   var meta=LOC.name+' · '+(isToday?'hoy':esc(t.dow))+' '+esc(t.lo)+' a '+esc(t.hi)+' · lluvia '+t.rain+'%'+(live?'':' · guardado '+new Date(d.at).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',hour12:false})+' h'+(wx.err&&wx.err.code?' ('+esc(wx.err.code)+')':''));
   el.innerHTML=(fresh?'<b>'+esc(d.cur.temperature)+'</b><span>'+esc(d.cur.phrase)+' · sensación '+esc(d.cur.realFeel)+'<span class="meta">'+meta+'</span></span>':'<span><span class="meta">'+meta+'</span></span>')+
@@ -870,6 +874,15 @@ function saveMailPrefs(){
 }
 mdlg.addEventListener('click',function(e){if(e.target===mdlg)mdlg.close();});
 
+/* ---------- permisos ---------- */
+var perm=null;
+async function getPerm(){if(perm!==null)return perm;try{perm=(await window.claude.use('permissions'))||false;}catch(e){perm=false;}return perm;}
+async function ensureMcp(name){
+  var p=await getPerm();if(!p)return 'unknown';
+  try{var k='mcp:'+name,st=await p.state(k);if(st==='prompt'){var r=await p.request([k]);st=r[k]||st;}return st;}catch(e){return 'unknown';}}
+var PERM_CODES={not_in_manifest:1,approval_required:1};
+function permBtn(code){return PERM_CODES[code]?'<button class="btn sm" data-act="perm-manage">Abrir permisos</button>':'';}
+
 /* ---------- Google Calendar ---------- */
 var CAL_MSG={
   needs_reauth:'Volvé a conectar Google Calendar en Configuración → Conectores.',
@@ -887,7 +900,7 @@ function renderCalState(){
   if(cal.status==='error'){
     el.className='calstate err';
     var c=cal.err&&cal.err.code;
-    el.innerHTML='<span>'+esc(CAL_MSG[c]||('No se pudo leer Google Calendar'+(c?' ('+c+')':'')+'.'))+'</span><button class="btn sm" data-act="cal-reload">Reintentar</button>';return;}
+    el.innerHTML='<span>'+esc(CAL_MSG[c]||('No se pudo leer Google Calendar'+(c?' ('+c+')':'')+'.'))+'</span><button class="btn sm" data-act="cal-reload">Reintentar</button>'+permBtn(c);return;}
   if(cal.status==='unavailable'){el.className='calstate';el.textContent='Google Calendar no está disponible en esta vista.';return;}
   el.className='calstate';
   el.innerHTML='<span>Calendar · '+new Date(cal.at).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',hour12:false})+' h</span><button class="btn sm" data-act="cal-reload">Actualizar</button>';
