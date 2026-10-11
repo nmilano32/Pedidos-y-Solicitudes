@@ -133,6 +133,13 @@ dialog::backdrop{background:rgba(8,16,14,.6)}
 #form .actions .spacer,#mform .actions .spacer{flex:1}
 .mf{display:flex;flex-direction:column;gap:5px}
 .mrow{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.wx{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin-top:12px;font-size:14px}
+.wx b{font:500 24px/1 var(--f-mono)}
+.wx .fc{display:flex;gap:12px}
+.wx .d{text-align:center;font:500 11px/1.3 var(--f-mono);color:var(--muted)}
+.wx .d span{display:block;color:var(--fg);font-size:13px}
+.chk{display:flex;align-items:center;gap:8px;flex-basis:100%;font-size:13px;color:var(--muted)}
+.chk input{width:auto}
 .mhint{margin:0;font-size:12.5px;color:var(--muted)}
 
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:14px;z-index:20;max-width:calc(100% - 32px)}
@@ -145,6 +152,7 @@ dialog::backdrop{background:rgba(8,16,14,.6)}
       <p class="eyebrow">Panel de vida</p>
       <h1 id="hello">Hola</h1>
       <p class="dateline" id="dateline"></p>
+      <div class="wx" id="wx"></div>
     </div>
     <div class="tstats" id="tstats"></div>
   </header>
@@ -181,6 +189,7 @@ dialog::backdrop{background:rgba(8,16,14,.6)}
         <div class="ph"><h2>Notas rápidas</h2></div>
         <form class="quick" id="noteform">
           <textarea id="note-text" rows="2" placeholder="Una idea o algo para no olvidar" aria-label="Nueva nota"></textarea>
+          <label class="chk"><input type="checkbox" id="note-notion"> Guardar también en Notion</label>
           <button class="btn primary" type="submit">Guardar nota</button>
         </form>
         <ul class="list" id="notelist"></ul>
@@ -323,7 +332,7 @@ function renderNotes(){
   var el=$('#notelist');
   var list=S.notes.slice().sort(function(a,b){return (b.createdAt||0)-(a.createdAt||0);});
   el.innerHTML=list.length?list.map(function(n){
-    return '<li class="row"><div class="grow"><button class="link note" data-act="edit" data-col="notes" data-id="'+esc(n.id)+'">'+esc(n.text)+'</button> '+exChip(n)+'<span class="meta">'+(n.createdAt?short(new Date(n.createdAt)):'')+'</span></div></li>';}).join(''):'<li>'+placeholder('notes','Las notas que guardes quedan acá, la más nueva primero.')+'</li>';
+    return '<li class="row"><div class="grow"><button class="link note" data-act="edit" data-col="notes" data-id="'+esc(n.id)+'">'+esc(n.text)+'</button> '+exChip(n)+'<span class="meta">'+(n.createdAt?short(new Date(n.createdAt)):'')+'</span></div>'+noteAction(n)+'</li>';}).join(''):'<li>'+placeholder('notes','Las notas que guardes quedan acá, la más nueva primero.')+'</li>';
 }
 function renderFinance(){
   var t=now(),cm=ym(t),ar=function(){return {ARS:0,USD:0};};
@@ -486,11 +495,13 @@ document.addEventListener('click',function(e){
   if(a==='toggle-done'){showDone=!showDone;render();return;}
   if(a==='clear-examples')return clearExamples();
   if(a==='cal-reload')return loadCalendar();
+  if(a==='wx-reload')return loadWeather();
   if(!need())return;
   if(a==='mail-done'){
     saveMailPrefs();
     write(db.collection('notified').doc(mail.key).set({at:Date.now(),title:mail.ev.title}).then(function(){mdlg.close();toast('Marcado como avisado');}));return;}
   if(a==='unnotify'){write(db.collection('notified').doc(id).delete());return;}
+  if(a==='note-notion'){x=find('notes',id);if(x)sendNote(id,x.text);return;}
   if(a==='toggle-task'){x=find('tasks',id);if(x)write(db.collection('tasks').doc(id).update({done:!x.done,doneAt:x.done?0:Date.now()}));}
   else if(a==='pay-bill'){var o={};o[b.dataset.key]=true;write(db.collection('bills').doc(id).update({paid:o}));}
   else if(a==='unpay-bill'){var o2={};o2[b.dataset.key]=false;write(db.collection('bills').doc(id).update({paid:o2}));}
@@ -505,8 +516,55 @@ $('#taskform').addEventListener('submit',function(e){
 });
 $('#noteform').addEventListener('submit',function(e){
   e.preventDefault();var t=$('#note-text').value.trim();if(!t||!need())return;
-  write(db.collection('notes').doc().set({text:t,createdAt:Date.now()}).then(function(){$('#note-text').value='';}));
+  var toNotion=$('#note-notion').checked,ref=db.collection('notes').doc();
+  write(ref.set({text:t,createdAt:Date.now()}).then(function(){$('#note-text').value='';$('#note-notion').checked=false;if(toNotion)return sendNote(ref.id,t);}));
 });
+
+/* ---------- clima (AccuWeather) ---------- */
+var WX='AccuWeather',LOC={key:'1228547',name:'Buenos Aires'};
+var wx={status:'idle',cur:null,days:[],err:null};
+var WX_MSG={not_in_manifest:'El clima no está permitido para este panel.',server_not_connected:'Conectá AccuWeather en Configuración → Conectores.',needs_reauth:'Volvé a conectar AccuWeather en Configuración → Conectores.',blocked_by_policy:'Tu organización bloquea AccuWeather.'};
+async function loadWeather(){
+  if(!mcp)return;
+  try{
+    var q={locationKey:LOC.key,unit:'metric',lang:'es'};
+    var r=await Promise.all([mcp.callTool(WX,'widgets-current-claude',{queryParams:q}),mcp.callTool(WX,'widgets-daily-claude',{queryParams:q})]);
+    var c=r[0].payload&&r[0].payload.currentConditions,d=r[1].payload&&r[1].payload.dailyForecast;
+    if(!c||!d||!d.length)throw {code:'bad_shape'};
+    wx={status:'ok',cur:c,days:d.slice(0,5),err:null};
+  }catch(e){wx.status='error';wx.err=e||{};}
+  renderWeather();
+}
+function rainPct(d){return Math.max((d.day&&d.day.rainProbabilityValue)||0,(d.night&&d.night.rainProbabilityValue)||0);}
+function renderWeather(){
+  var el=$('#wx');if(!el)return;
+  if(wx.status==='error'){el.innerHTML='<span class="meta">'+esc(WX_MSG[wx.err.code]||'No se pudo leer el clima.')+'</span><button class="btn sm" data-act="wx-reload">Reintentar</button>';return;}
+  if(wx.status!=='ok'){el.innerHTML='';return;}
+  var t=wx.days[0],rain=rainPct(t);
+  el.innerHTML='<b>'+esc(wx.cur.temperature)+'</b><span>'+esc(wx.cur.phrase)+' · sensación '+esc(wx.cur.realFeel)+'<span class="meta">'+LOC.name+' · hoy '+esc(t.night.displayTemperature)+' a '+esc(t.day.displayTemperature)+' · lluvia '+rain+'%</span></span>'+(rain>=50?chip('Llevá paraguas','warn'):'')+
+    '<div class="fc">'+wx.days.slice(1,5).map(function(d){return '<div class="d">'+esc(d.shortDayOfWeek)+'<span>'+esc(d.day.displayTemperature)+'</span>'+rainPct(d)+'%</div>';}).join('')+'</div>';
+}
+
+/* ---------- notas a Notion ---------- */
+var NT='Notion';
+var NT_MSG={not_in_manifest:'Notion no está permitido para este panel.',server_not_connected:'Conectá Notion en Configuración → Conectores.',needs_reauth:'Volvé a conectar Notion en Configuración → Conectores.',blocked_by_policy:'Tu organización bloquea Notion.'};
+function noteAction(n){
+  if(!mcp)return '';
+  if(n.inNotion)return n.notionUrl?'<a class="chip good" href="'+esc(n.notionUrl)+'" target="_blank" rel="noopener">En Notion</a>':chip('En Notion','good');
+  return '<button class="btn sm" data-act="note-notion" data-id="'+esc(n.id)+'">Guardar en Notion</button>';
+}
+async function sendNote(id,text){
+  var st=find('settings','notion');
+  if(!mcp||!db){toast('Notion no está disponible en esta vista');return;}
+  if(!st||!st.pageId){toast('Falta indicar la página de Notion donde guardar');return;}
+  var title=String(text).split('\n')[0].trim().slice(0,80)||'Nota';
+  try{
+    var r=await mcp.callTool(NT,'notion-create-pages',{parent:{type:'page_id',page_id:st.pageId},pages:[{properties:{title:title},content:String(text)}]});
+    var pg=r.payload&&r.payload.pages&&r.payload.pages[0];
+    await db.collection('notes').doc(id).update({inNotion:true,notionUrl:(pg&&pg.url)||''});
+    toast('Guardada en Notion');
+  }catch(e){toast(NT_MSG[e&&e.code]||'No se pudo guardar en Notion');}
+}
 
 /* ---------- aviso por mail (examen) ---------- */
 var EXAM=/examen|parcial|recuperatorio|evaluaci[oó]n|integrador|coloquio|^final\b|\bfinal de\b|mesa de final/i;
@@ -620,6 +678,7 @@ async function loadCalendar(){
   try{mcp=window.claude&&window.claude.use?await window.claude.use('mcp'):null;}catch(e){mcp=null;}
   if(!mcp){cal.status='unavailable';render();return;}
   loadCalendar();
+  loadWeather();
 })();
 (async function init(){
   render();
@@ -634,5 +693,6 @@ async function loadCalendar(){
 })();
 setInterval(function(){render();},60*60*1000);
 setInterval(function(){if(!document.hidden&&cal.status==='ok')loadCalendar();},15*60*1000);
+setInterval(function(){if(!document.hidden&&wx.status==='ok')loadWeather();},30*60*1000);
 })();
 </script>
