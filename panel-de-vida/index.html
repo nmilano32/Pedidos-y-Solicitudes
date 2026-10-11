@@ -530,7 +530,7 @@ function renderHeader(){
 function render(){
   if(pending)return;pending=true;
   requestAnimationFrame(function(){pending=false;
-    renderHeader();renderCalState();renderGmail();renderAgenda();renderToday();renderTasks();renderHabits();renderNotes();renderFinance();renderStatements();renderSubs();renderBills();});
+    renderHeader();renderWeather();renderCalState();renderGmail();renderAgenda();renderToday();renderTasks();renderHabits();renderNotes();renderFinance();renderStatements();renderSubs();renderBills();});
 }
 
 /* ---------- forms ---------- */
@@ -747,7 +747,7 @@ function renderGmail(){
   if(gm.status==='idle'){st.innerHTML='<button class="btn sm" data-act="gm-scan">Buscar vencimientos en Gmail</button>';box.innerHTML='';return;}
   if(gm.status==='loading'){st.textContent='Revisando Gmail…';return;}
   if(gm.status==='error'){st.className='calstate err';st.innerHTML='<span>'+esc(GM_MSG[gm.err.code]||'No se pudo leer Gmail.')+'</span><button class="btn sm" data-act="gm-scan">Reintentar</button>';box.innerHTML='';return;}
-  st.innerHTML='<span>Gmail · '+new Date(gm.at).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})+' h</span><button class="btn sm" data-act="gm-scan">Buscar de nuevo</button>';
+  st.innerHTML='<span>Gmail · '+new Date(gm.at).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',hour12:false})+' h</span><button class="btn sm" data-act="gm-scan">Buscar de nuevo</button>';
   var vis=gmVisible();
   if(!vis.length){box.innerHTML='<p class="empty">No hay vencimientos nuevos en tus mails de los últimos 45 días.</p>';return;}
   box.innerHTML='<p class="sub">Encontré esto en tus mails. Revisalo y agregalo si está bien.</p><ul class="list" style="margin-bottom:16px">'+vis.map(function(it){
@@ -761,27 +761,45 @@ function renderGmail(){
 
 /* ---------- clima (AccuWeather) ---------- */
 var WX='AccuWeather',LOC={key:'1228547',name:'Buenos Aires'};
-var wx={status:'idle',cur:null,days:[],err:null};
+var wx={status:'idle',cur:null,days:[],err:null,stale:false,at:0};
 var WX_MSG={not_in_manifest:'El clima no está permitido para este panel.',server_not_connected:'Conectá AccuWeather en Configuración → Conectores.',needs_reauth:'Volvé a conectar AccuWeather en Configuración → Conectores.',blocked_by_policy:'Tu organización bloquea AccuWeather.'};
+function rainPct(d){return Math.max((d.day&&d.day.rainProbabilityValue)||0,(d.night&&d.night.rainProbabilityValue)||0);}
+function pickPayload(r){var p=r&&r.payload;if(p&&typeof p==='object')return p;
+  try{var t=r&&r.content&&r.content.find(function(c){return c.type==='text';});return t?JSON.parse(t.text):null;}catch(e){return null;}}
+function wxNorm(c,d){return {cur:{temperature:c.temperature,phrase:c.phrase,realFeel:c.realFeel},
+  days:d.slice(0,5).map(function(x){return {dow:x.shortDayOfWeek,hi:x.day.displayTemperature,lo:x.night.displayTemperature,rain:rainPct(x),date:String(x.date).slice(0,10)};})};}
+async function wxServer(){
+  try{var lt=await mcp.listTools();var sv=(lt.servers||[]).find(function(x){return /accuweather/i.test(x.server);});if(sv)return sv.server;}catch(e){}
+  return WX;}
+function saveWxSnapshot(n){
+  if(!db)return;var snap=find('settings','weather');
+  if(snap&&snap.at&&Date.now()-snap.at<3600e3)return;
+  db.collection('settings').doc('weather').set({at:Date.now(),cur:n.cur,days:n.days}).catch(function(){});}
 async function loadWeather(){
   if(!mcp)return;
   try{
-    var q={locationKey:LOC.key,unit:'metric',lang:'es'};
-    var r=await Promise.all([mcp.callTool(WX,'widgets-current-claude',{queryParams:q}),mcp.callTool(WX,'widgets-daily-claude',{queryParams:q})]);
-    var c=r[0].payload&&r[0].payload.currentConditions,d=r[1].payload&&r[1].payload.dailyForecast;
+    var srv=await wxServer(),q={locationKey:LOC.key,unit:'metric',lang:'es'};
+    var r=await Promise.all([mcp.callTool(srv,'widgets-current-claude',{queryParams:q}),mcp.callTool(srv,'widgets-daily-claude',{queryParams:q})]);
+    var c=(pickPayload(r[0])||{}).currentConditions,d=(pickPayload(r[1])||{}).dailyForecast;
     if(!c||!d||!d.length)throw {code:'bad_shape'};
-    wx={status:'ok',cur:c,days:d.slice(0,5),err:null};
+    var n=wxNorm(c,d);wx={status:'ok',cur:n.cur,days:n.days,err:null,stale:false,at:Date.now()};
+    saveWxSnapshot(n);
   }catch(e){wx.status='error';wx.err=e||{};}
   renderWeather();
 }
-function rainPct(d){return Math.max((d.day&&d.day.rainProbabilityValue)||0,(d.night&&d.night.rainProbabilityValue)||0);}
 function renderWeather(){
   var el=$('#wx');if(!el)return;
-  if(wx.status==='error'){el.innerHTML='<span class="meta">'+esc(WX_MSG[wx.err.code]||'No se pudo leer el clima.')+'</span><button class="btn sm" data-act="wx-reload">Reintentar</button>';return;}
-  if(wx.status!=='ok'){el.innerHTML='';return;}
-  var t=wx.days[0],rain=rainPct(t);
-  el.innerHTML='<b>'+esc(wx.cur.temperature)+'</b><span>'+esc(wx.cur.phrase)+' · sensación '+esc(wx.cur.realFeel)+'<span class="meta">'+LOC.name+' · hoy '+esc(t.night.displayTemperature)+' a '+esc(t.day.displayTemperature)+' · lluvia '+rain+'%</span></span>'+(rain>=50?chip('Llevá paraguas','warn'):'')+
-    '<div class="fc">'+wx.days.slice(1,5).map(function(d){return '<div class="d">'+esc(d.shortDayOfWeek)+'<span>'+esc(d.day.displayTemperature)+'</span>'+rainPct(d)+'%</div>';}).join('')+'</div>';
+  var snap=find('settings','weather'),live=wx.status==='ok';
+  var d=live?wx:(snap&&snap.days?{cur:snap.cur,days:snap.days,at:snap.at}:null);
+  var today=ymd(now()),days=d?d.days.filter(function(x){return x.date>=today;}):[];
+  if(!d||!days.length){
+    el.innerHTML=wx.status==='error'?'<span class="meta">'+esc(WX_MSG[wx.err.code]||('No se pudo leer el clima'+(wx.err.code?' ('+wx.err.code+')':'')+'.'))+'</span><button class="btn sm" data-act="wx-reload">Reintentar</button>':'';return;}
+  var t=days[0],isToday=t.date===today,fresh=live||(d.at&&ymd(new Date(d.at))===today);
+  var meta=LOC.name+' · '+(isToday?'hoy':esc(t.dow))+' '+esc(t.lo)+' a '+esc(t.hi)+' · lluvia '+t.rain+'%'+(live?'':' · guardado '+new Date(d.at).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',hour12:false})+' h'+(wx.err&&wx.err.code?' ('+esc(wx.err.code)+')':''));
+  el.innerHTML=(fresh?'<b>'+esc(d.cur.temperature)+'</b><span>'+esc(d.cur.phrase)+' · sensación '+esc(d.cur.realFeel)+'<span class="meta">'+meta+'</span></span>':'<span><span class="meta">'+meta+'</span></span>')+
+    (t.rain>=50?chip('Llevá paraguas','warn'):'')+
+    '<div class="fc">'+days.slice(1,5).map(function(x){return '<div class="d">'+esc(x.dow)+'<span>'+esc(x.hi)+'</span>'+x.rain+'%</div>';}).join('')+'</div>'+
+    (live?'':'<button class="btn sm" data-act="wx-reload">Actualizar</button>');
 }
 
 /* ---------- notas a Notion ---------- */
@@ -871,7 +889,7 @@ function renderCalState(){
     el.innerHTML='<span>'+esc(CAL_MSG[c]||('No se pudo leer Google Calendar'+(c?' ('+c+')':'')+'.'))+'</span><button class="btn sm" data-act="cal-reload">Reintentar</button>';return;}
   if(cal.status==='unavailable'){el.className='calstate';el.textContent='Google Calendar no está disponible en esta vista.';return;}
   el.className='calstate';
-  el.innerHTML='<span>Calendar · '+new Date(cal.at).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})+' h</span><button class="btn sm" data-act="cal-reload">Actualizar</button>';
+  el.innerHTML='<span>Calendar · '+new Date(cal.at).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',hour12:false})+' h</span><button class="btn sm" data-act="cal-reload">Actualizar</button>';
 }
 function toEvent(e,calName){
   if(!e||e.status==='cancelled'||!e.start)return null;
