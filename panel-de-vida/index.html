@@ -760,7 +760,7 @@ function renderGmail(){
 }
 
 /* ---------- clima (AccuWeather) ---------- */
-var WX='AccuWeather',LOC={key:'1228547',name:'Buenos Aires'};
+var WX='AccuWeather',LOC={key:'7084',name:'Ciudadela'};
 var wx={status:'idle',cur:null,days:[],err:null,stale:false,at:0};
 var WX_MSG={not_in_manifest:'El clima no está permitido para este panel.',server_not_connected:'Conectá AccuWeather en Configuración → Conectores.',needs_reauth:'Volvé a conectar AccuWeather en Configuración → Conectores.',blocked_by_policy:'Tu organización bloquea AccuWeather.'};
 function rainPct(d){return Math.max((d.day&&d.day.rainProbabilityValue)||0,(d.night&&d.night.rainProbabilityValue)||0);}
@@ -773,8 +773,8 @@ async function wxServer(){
   return WX;}
 function saveWxSnapshot(n){
   if(!db)return;var snap=find('settings','weather');
-  if(snap&&snap.at&&Date.now()-snap.at<3600e3)return;
-  db.collection('settings').doc('weather').set({at:Date.now(),cur:n.cur,days:n.days}).catch(function(){});}
+  if(snap&&snap.loc===LOC.key&&snap.at&&Date.now()-snap.at<3600e3)return;
+  db.collection('settings').doc('weather').set({loc:LOC.key,at:Date.now(),cur:n.cur,days:n.days}).catch(function(){});}
 async function loadWeather(){
   if(!mcp)return;
   try{
@@ -790,7 +790,7 @@ async function loadWeather(){
 function renderWeather(){
   var el=$('#wx');if(!el)return;
   var snap=find('settings','weather'),live=wx.status==='ok';
-  var d=live?wx:(snap&&snap.days?{cur:snap.cur,days:snap.days,at:snap.at}:null);
+  var d=live?wx:(snap&&snap.days&&snap.loc===LOC.key?{cur:snap.cur,days:snap.days,at:snap.at}:null);
   var today=ymd(now()),days=d?d.days.filter(function(x){return x.date>=today;}):[];
   if(!d||!days.length){
     el.innerHTML=wx.status==='error'?'<span class="meta">'+esc(WX_MSG[wx.err.code]||('No se pudo leer el clima'+(wx.err.code?' ('+wx.err.code+')':'')+'.'))+'</span><button class="btn sm" data-act="wx-reload">Reintentar</button>':'';return;}
