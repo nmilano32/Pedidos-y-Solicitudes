@@ -126,11 +126,14 @@ textarea{resize:vertical}
 
 dialog{border:1px solid var(--line);border-radius:12px;padding:0;background:var(--surface);color:var(--fg);width:min(460px,calc(100% - 32px))}
 dialog::backdrop{background:rgba(8,16,14,.6)}
-#form{display:flex;flex-direction:column;gap:14px;padding:20px}
-#form h3{font:600 20px var(--f-display);margin:0}
-#form label{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:600}
-#form .actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:4px}
-#form .actions .spacer{flex:1}
+#form,#mform{display:flex;flex-direction:column;gap:14px;padding:20px}
+#form h3,#mform h3{font:600 20px var(--f-display);margin:0}
+#form label,#mform label{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:600}
+#form .actions,#mform .actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:4px}
+#form .actions .spacer,#mform .actions .spacer{flex:1}
+.mf{display:flex;flex-direction:column;gap:5px}
+.mrow{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.mhint{margin:0;font-size:12.5px;color:var(--muted)}
 
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:14px;z-index:20;max-width:calc(100% - 32px)}
 @media (prefers-reduced-motion:no-preference){.btn,.check,.dot{transition:background .15s,border-color .15s}}
@@ -209,12 +212,13 @@ dialog::backdrop{background:rgba(8,16,14,.6)}
 </div>
 
 <dialog id="dlg"><form id="form" method="dialog"></form></dialog>
+<dialog id="mdlg"><form id="mform" method="dialog"></form></dialog>
 <div id="toast" hidden></div>
 
 <script>
 (function(){
 'use strict';
-var COLS=['tasks','habits','statements','subs','bills','notes'];
+var COLS=['tasks','habits','statements','subs','bills','notes','settings','notified'];
 var S={},loaded={},db=null,offline=false,showDone=false,pending=false;
 var mcp=null,CAL='Google Calendar',cal={status:'idle',events:[],err:null,at:0};
 COLS.forEach(function(c){S[c]=[];loaded[c]=false;});
@@ -271,7 +275,7 @@ function renderAgenda(){
     var n=diff(i.date,t),g=n<0?'Atrasado':(n===0?'Hoy':'Próximos 7 días');
     if(g!==last){html+='<li class="grp'+(n<0?' over':'')+'">'+g+'</li>';last=g;}
     if(i.kind==='event'){
-      html+='<li class="row"><span class="kind k-event">Agenda</span><div class="grow">'+(i.link?'<a class="link" href="'+esc(i.link)+'" target="_blank" rel="noopener">'+esc(i.title)+'</a>':'<span class="t">'+esc(i.title)+'</span>')+'<span class="meta">'+(i.time?i.time+' h':'Todo el día')+' · '+rel(i.date)+' · '+short(i.date)+(i.cal?' · '+esc(i.cal):'')+'</span></div></li>';
+      html+='<li class="row"><span class="kind k-event">Agenda</span><div class="grow">'+(i.link?'<a class="link" href="'+esc(i.link)+'" target="_blank" rel="noopener">'+esc(i.title)+'</a>':'<span class="t">'+esc(i.title)+'</span>')+'<span class="meta">'+(i.time?i.time+' h':'Todo el día')+' · '+rel(i.date)+' · '+short(i.date)+(i.cal?' · '+esc(i.cal):'')+'</span></div>'+eventAction(i)+'</li>';
       return;}
     var amt='';
     if(i.kind==='card')amt=pair({ARS:i.amt||0,USD:i.usd||0});
@@ -467,7 +471,13 @@ document.addEventListener('click',function(e){
   var a=b.dataset.act,id=b.dataset.id,col=b.dataset.col,x;
   if(a==='add')return openForm(col,'');
   if(a==='edit')return openForm(col,id);
-  if(a==='close'){dlg.close();return;}
+  if(a==='close'){b.closest('dialog').close();return;}
+  if(a==='mail-open')return openMail(id);
+  if(a==='copy'){
+    var el=$('#'+b.dataset.target);saveMailPrefs();
+    var ok=function(){toast('Copiado');},ko=function(){el.focus();el.select();toast('Seleccioná el texto y copialo con Ctrl+C');};
+    try{navigator.clipboard.writeText(el.value).then(ok,ko);}catch(err){ko();}
+    return;}
   if(a==='delete'){
     if(!armed){armed=true;b.textContent='¿Seguro? Tocá de nuevo';return;}
     if(!need())return;
@@ -477,6 +487,10 @@ document.addEventListener('click',function(e){
   if(a==='clear-examples')return clearExamples();
   if(a==='cal-reload')return loadCalendar();
   if(!need())return;
+  if(a==='mail-done'){
+    saveMailPrefs();
+    write(db.collection('notified').doc(mail.key).set({at:Date.now(),title:mail.ev.title}).then(function(){mdlg.close();toast('Marcado como avisado');}));return;}
+  if(a==='unnotify'){write(db.collection('notified').doc(id).delete());return;}
   if(a==='toggle-task'){x=find('tasks',id);if(x)write(db.collection('tasks').doc(id).update({done:!x.done,doneAt:x.done?0:Date.now()}));}
   else if(a==='pay-bill'){var o={};o[b.dataset.key]=true;write(db.collection('bills').doc(id).update({paid:o}));}
   else if(a==='unpay-bill'){var o2={};o2[b.dataset.key]=false;write(db.collection('bills').doc(id).update({paid:o2}));}
@@ -493,6 +507,52 @@ $('#noteform').addEventListener('submit',function(e){
   e.preventDefault();var t=$('#note-text').value.trim();if(!t||!need())return;
   write(db.collection('notes').doc().set({text:t,createdAt:Date.now()}).then(function(){$('#note-text').value='';}));
 });
+
+/* ---------- aviso por mail (examen) ---------- */
+var EXAM=/examen|parcial|recuperatorio|evaluaci[oó]n|integrador|coloquio|^final\b|\bfinal de\b|mesa de final/i;
+var isExam=function(e){return e.kind==='event'&&EXAM.test(e.title);};
+var evKey=function(e){return e.id+'_'+ymd(e.date);};
+function eventAction(i){
+  if(!isExam(i))return '';
+  var k=evKey(i);
+  if(find('notified',k))return chip('Aviso enviado','good')+'<button class="btn sm" data-act="unnotify" data-id="'+esc(k)+'">Deshacer</button>';
+  return '<button class="btn sm primary" data-act="mail-open" data-id="'+esc(k)+'">Avisar en el trabajo</button>';
+}
+function mailBody(ev,sign){
+  var wd=ev.date.toLocaleDateString('es-AR',{weekday:'long'}),dm=ev.date.toLocaleDateString('es-AR',{day:'numeric',month:'long'});
+  return 'Hola,\n\nQuería avisarte que el '+wd+' '+dm+' tengo "'+ev.title+'"'+(ev.time?' a las '+ev.time+' h':'')+', así que ese día no voy a estar disponible para el trabajo.\n\nDejo mis temas encaminados antes y cualquier cosa me escribís.\n\nSaludos'+(sign?',\n'+sign:'');
+}
+function mailSubject(ev){
+  var wd=ev.date.toLocaleDateString('es-AR',{weekday:'long'}),dm=ev.date.toLocaleDateString('es-AR',{day:'numeric',month:'long'});
+  return 'Aviso de ausencia el '+wd+' '+dm;
+}
+var mdlg=$('#mdlg'),mform=$('#mform'),mail=null;
+function openMail(key){
+  var ev=cal.events.find(function(e){return evKey(e)===key;});if(!ev)return;
+  var st=find('settings','mail')||{};
+  mail={key:key,ev:ev,dirty:false};
+  var f=function(id,label,input){return '<div class="mf"><div class="mrow"><label for="'+id+'">'+label+'</label><button type="button" class="btn sm" data-act="copy" data-target="'+id+'">Copiar</button></div>'+input+'</div>';};
+  mform.innerHTML='<h3>Avisar en el trabajo</h3><p class="mhint">Armé el mail con los datos de tu calendario. Editalo si hace falta, copialo y pegalo en Outlook.</p>'+
+    f('m-to','Para','<input id="m-to" type="text" autocomplete="off" placeholder="nombre@empresa.com" value="'+esc(st.to||'')+'">')+
+    '<div class="mf"><label for="m-sign">Tu nombre para la firma</label><input id="m-sign" type="text" autocomplete="off" value="'+esc(st.sign||'')+'"></div>'+
+    f('m-subj','Asunto','<input id="m-subj" type="text" value="'+esc(mailSubject(ev))+'">')+
+    f('m-body','Mensaje','<textarea id="m-body" rows="9">'+esc(mailBody(ev,st.sign||''))+'</textarea>')+
+    '<p class="mhint">Se recuerdan el destinatario y la firma para la próxima vez.</p>'+
+    '<div class="actions"><button type="button" class="btn" data-act="close">Cerrar</button><span class="spacer"></span><button type="button" class="btn primary" data-act="mail-done">Ya avisé</button></div>';
+  mdlg.showModal();
+}
+mform.addEventListener('input',function(e){
+  if(!mail)return;
+  if(e.target.id==='m-body')mail.dirty=true;
+  if(e.target.id==='m-sign'&&!mail.dirty)$('#m-body').value=mailBody(mail.ev,e.target.value.trim());
+});
+mform.addEventListener('submit',function(e){e.preventDefault();});
+function saveMailPrefs(){
+  if(!db||!mail)return;
+  var to=$('#m-to').value.trim(),sign=$('#m-sign').value.trim(),cur=find('settings','mail')||{};
+  if(cur.to!==to||cur.sign!==sign)db.collection('settings').doc('mail').set({to:to,sign:sign}).catch(function(){});
+}
+mdlg.addEventListener('click',function(e){if(e.target===mdlg)mdlg.close();});
 
 /* ---------- Google Calendar ---------- */
 var CAL_MSG={
