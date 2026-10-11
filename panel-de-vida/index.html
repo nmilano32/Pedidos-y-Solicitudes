@@ -635,6 +635,7 @@ document.addEventListener('click',function(e){
   if(a==='wx-reload')return loadWeather();
   if(a==='perm-manage'){getPerm().then(function(pp){if(!pp)throw 0;return pp.manage();}).catch(function(){toast('Abrí el menú Permisos de esta página y activá Gmail.');});return;}
   if(a==='diag')return diagRun();
+  if(a==='perm-ask'){var sv=b.dataset.srv;ensureMcp(sv).then(function(st){if(st==='denied'||st==='unavailable'||st==='unknown'){toast('No se pudo activar. Probá con Permisos de conexiones.');return;}if(sv==='AccuWeather')loadWeather();});return;}
   if(a==='gm-scan')return scanGmail();
   if(a==='focus-start'){x=find('tasks',id);if(x){fo={end:Date.now()+25*60000,title:x.title};render();}return;}
   if(a==='focus-stop'){fo.end=0;render();return;}
@@ -770,7 +771,7 @@ function renderGmail(){
 /* ---------- clima (AccuWeather) ---------- */
 var WX='AccuWeather',LOC={key:'7084',name:'Ciudadela'};
 var wx={status:'idle',cur:null,days:[],err:null,stale:false,at:0};
-var WX_MSG={not_in_manifest:'El clima no está permitido para este panel.',server_not_connected:'Conectá AccuWeather en Configuración → Conectores.',needs_reauth:'Volvé a conectar AccuWeather en Configuración → Conectores.',blocked_by_policy:'Tu organización bloquea AccuWeather.'};
+var WX_MSG={upstream_error:'Falta permitir el clima para este panel.',not_in_manifest:'El clima no está permitido para este panel.',server_not_connected:'Conectá AccuWeather en Configuración → Conectores.',needs_reauth:'Volvé a conectar AccuWeather en Configuración → Conectores.',blocked_by_policy:'Tu organización bloquea AccuWeather.'};
 function rainPct(d){return Math.max((d.day&&d.day.rainProbabilityValue)||0,(d.night&&d.night.rainProbabilityValue)||0);}
 function pickPayload(r){var p=r&&r.payload;if(p&&typeof p==='object')return p;
   try{var t=r&&r.content&&r.content.find(function(c){return c.type==='text';});return t?JSON.parse(t.text):null;}catch(e){return null;}}
@@ -787,6 +788,7 @@ async function loadWeather(){
   if(!mcp)return;
   try{
     var srv=await wxServer(),q={locationKey:LOC.key,unit:'metric',lang:'es'};
+    if(await ensureMcp(srv)==='denied')throw {code:'not_in_manifest'};
     var r=await Promise.all([mcp.callTool(srv,'widgets-current-claude',{queryParams:q}),mcp.callTool(srv,'widgets-daily-claude',{queryParams:q})]);
     var c=(pickPayload(r[0])||{}).currentConditions,d=(pickPayload(r[1])||{}).dailyForecast;
     if(!c||!d||!d.length)throw {code:'bad_shape'};
@@ -801,7 +803,7 @@ function renderWeather(){
   var d=live?wx:(snap&&snap.days&&snap.loc===LOC.key?{cur:snap.cur,days:snap.days,at:snap.at}:null);
   var today=ymd(now()),days=d?d.days.filter(function(x){return x.date>=today;}):[];
   if(!d||!days.length){
-    el.innerHTML=wx.status==='error'?'<span class="meta">'+esc(WX_MSG[wx.err.code]||('No se pudo leer el clima'+errTxt(wx.err)+'.'))+'</span><button class="btn sm" data-act="wx-reload">Reintentar</button>'+permBtn(wx.err.code):'';return;}
+    el.innerHTML=wx.status==='error'?'<span class="meta">'+esc(WX_MSG[wx.err.code]||('No se pudo leer el clima'+errTxt(wx.err)+'.'))+'</span>'+(PERM_ASK[wx.err.code]?'<button class="btn sm primary" data-act="perm-ask" data-srv="AccuWeather">Permitir clima</button>':'')+'<button class="btn sm" data-act="wx-reload">Reintentar</button>'+permBtn(wx.err.code):'';return;}
   var t=days[0],isToday=t.date===today,fresh=live||(d.at&&ymd(new Date(d.at))===today);
   var meta=LOC.name+' · '+(isToday?'hoy':esc(t.dow))+' '+esc(t.lo)+' a '+esc(t.hi)+' · lluvia '+t.rain+'%'+(live?'':' · guardado '+new Date(d.at).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',hour12:false})+' h'+(wx.err&&wx.err.code?' ('+esc(wx.err.code)+')':''));
   el.innerHTML=(fresh?'<b>'+esc(d.cur.temperature)+'</b><span>'+esc(d.cur.phrase)+' · sensación '+esc(d.cur.realFeel)+'<span class="meta">'+meta+'</span></span>':'<span><span class="meta">'+meta+'</span></span>')+
@@ -824,6 +826,7 @@ async function sendNote(id,text){
   if(!st||!st.pageId){toast('Falta indicar la página de Notion donde guardar');return;}
   var title=String(text).split('\n')[0].trim().slice(0,80)||'Nota';
   try{
+    if(await ensureMcp(NT)==='denied')throw {code:'not_in_manifest'};
     var r=await mcp.callTool(NT,'notion-create-pages',{parent:{type:'page_id',page_id:st.pageId},pages:[{properties:{title:title},content:String(text)}]});
     var pg=r.payload&&r.payload.pages&&r.payload.pages[0];
     await db.collection('notes').doc(id).update({inNotion:true,notionUrl:(pg&&pg.url)||''});
@@ -883,7 +886,7 @@ async function getPerm(){if(perm!==null)return perm;try{perm=(await window.claud
 async function ensureMcp(name){
   var p=await getPerm();if(!p)return 'unknown';
   try{var k='mcp:'+name,st=await p.state(k);if(st==='prompt'){var r=await p.request([k]);st=r[k]||st;}return st;}catch(e){return 'unknown';}}
-var PERM_CODES={not_in_manifest:1,approval_required:1};
+var PERM_CODES={not_in_manifest:1,approval_required:1},PERM_ASK={upstream_error:1,not_in_manifest:1,approval_required:1};
 function errTxt(e){e=e||{};return (e.code?' ('+e.code+')':'')+(e.message?': '+String(e.message).slice(0,140):'');}
 function permBtn(code){return PERM_CODES[code]?'<button class="btn sm" data-act="perm-manage">Abrir permisos</button>':'';}
 
