@@ -158,6 +158,7 @@ main{display:flex;flex-direction:column;gap:16px}
 .view{display:flex;flex-direction:column;gap:16px}
 .view[hidden],[data-subview][hidden]{display:none!important}
 .foot{margin:24px 0 0;text-align:center}
+.diag{margin:12px 0 0;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font:12px/1.5 var(--f-mono);white-space:pre-wrap;overflow-wrap:anywhere}
 .tstats{display:flex;flex-wrap:wrap;gap:8px 32px;padding-inline:2px}
 .focus{background:var(--accent-soft);border-radius:12px;padding:22px}
 .focus .eyebrow{margin-bottom:10px}
@@ -281,7 +282,8 @@ main{display:flex;flex-direction:column;gap:16px}
       </div>
     </section>
   </main>
-  <p class="foot"><button class="btn sm" data-act="perm-manage">Permisos de conexiones</button></p>
+  <p class="foot"><button class="btn sm" data-act="perm-manage">Permisos de conexiones</button> <button class="btn sm" data-act="diag">Revisar conexiones</button></p>
+  <pre class="diag" id="diag" hidden></pre>
 </div>
 
 <dialog id="dlg"><form id="form" method="dialog"></form></dialog>
@@ -632,6 +634,7 @@ document.addEventListener('click',function(e){
   if(a==='cal-reload')return loadCalendar();
   if(a==='wx-reload')return loadWeather();
   if(a==='perm-manage'){getPerm().then(function(pp){if(!pp)throw 0;return pp.manage();}).catch(function(){toast('Abrí el menú Permisos de esta página y activá Gmail.');});return;}
+  if(a==='diag')return diagRun();
   if(a==='gm-scan')return scanGmail();
   if(a==='focus-start'){x=find('tasks',id);if(x){fo={end:Date.now()+25*60000,title:x.title};render();}return;}
   if(a==='focus-stop'){fo.end=0;render();return;}
@@ -751,7 +754,7 @@ function renderGmail(){
   st.className='calstate';
   if(gm.status==='idle'){st.innerHTML='<button class="btn sm" data-act="gm-scan">Buscar vencimientos en Gmail</button>';box.innerHTML='';return;}
   if(gm.status==='loading'){st.textContent='Revisando Gmail…';return;}
-  if(gm.status==='error'){st.className='calstate err';st.innerHTML='<span>'+esc(GM_MSG[gm.err.code]||'No se pudo leer Gmail.')+'</span><button class="btn sm" data-act="gm-scan">Reintentar</button>'+permBtn(gm.err.code);box.innerHTML='';return;}
+  if(gm.status==='error'){st.className='calstate err';st.innerHTML='<span>'+esc(GM_MSG[gm.err.code]||('No se pudo leer Gmail'+errTxt(gm.err)+'.'))+'</span><button class="btn sm" data-act="gm-scan">Reintentar</button>'+permBtn(gm.err.code);box.innerHTML='';return;}
   st.innerHTML='<span>Gmail · '+new Date(gm.at).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',hour12:false})+' h</span><button class="btn sm" data-act="gm-scan">Buscar de nuevo</button>';
   var vis=gmVisible();
   if(!vis.length){box.innerHTML='<p class="empty">No hay vencimientos nuevos en tus mails de los últimos 45 días.</p>';return;}
@@ -798,7 +801,7 @@ function renderWeather(){
   var d=live?wx:(snap&&snap.days&&snap.loc===LOC.key?{cur:snap.cur,days:snap.days,at:snap.at}:null);
   var today=ymd(now()),days=d?d.days.filter(function(x){return x.date>=today;}):[];
   if(!d||!days.length){
-    el.innerHTML=wx.status==='error'?'<span class="meta">'+esc(WX_MSG[wx.err.code]||('No se pudo leer el clima'+(wx.err.code?' ('+wx.err.code+')':'')+'.'))+'</span><button class="btn sm" data-act="wx-reload">Reintentar</button>'+permBtn(wx.err.code):'';return;}
+    el.innerHTML=wx.status==='error'?'<span class="meta">'+esc(WX_MSG[wx.err.code]||('No se pudo leer el clima'+errTxt(wx.err)+'.'))+'</span><button class="btn sm" data-act="wx-reload">Reintentar</button>'+permBtn(wx.err.code):'';return;}
   var t=days[0],isToday=t.date===today,fresh=live||(d.at&&ymd(new Date(d.at))===today);
   var meta=LOC.name+' · '+(isToday?'hoy':esc(t.dow))+' '+esc(t.lo)+' a '+esc(t.hi)+' · lluvia '+t.rain+'%'+(live?'':' · guardado '+new Date(d.at).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',hour12:false})+' h'+(wx.err&&wx.err.code?' ('+esc(wx.err.code)+')':''));
   el.innerHTML=(fresh?'<b>'+esc(d.cur.temperature)+'</b><span>'+esc(d.cur.phrase)+' · sensación '+esc(d.cur.realFeel)+'<span class="meta">'+meta+'</span></span>':'<span><span class="meta">'+meta+'</span></span>')+
@@ -881,8 +884,21 @@ async function ensureMcp(name){
   var p=await getPerm();if(!p)return 'unknown';
   try{var k='mcp:'+name,st=await p.state(k);if(st==='prompt'){var r=await p.request([k]);st=r[k]||st;}return st;}catch(e){return 'unknown';}}
 var PERM_CODES={not_in_manifest:1,approval_required:1};
+function errTxt(e){e=e||{};return (e.code?' ('+e.code+')':'')+(e.message?': '+String(e.message).slice(0,140):'');}
 function permBtn(code){return PERM_CODES[code]?'<button class="btn sm" data-act="perm-manage">Abrir permisos</button>':'';}
 
+async function diagRun(){
+  var el=$('#diag');el.hidden=false;el.textContent='Revisando…';
+  var out=['Hora: '+new Date().toLocaleString('es-AR')];
+  out.push('Guardado (db): '+(db?'conectado':'no disponible'));
+  out.push('Conexiones (mcp): '+(mcp?'disponible':'no disponible en esta vista'));
+  try{var p=await getPerm();out.push('Permisos: '+(p?JSON.stringify(await p.state()):'no disponible'));}catch(e){out.push('Permisos: error'+errTxt(e));}
+  if(mcp){try{var lt=await mcp.listTools();out.push('Conectores: '+(lt.servers||[]).map(function(x){return x.server+' ['+x.authStatus+', '+(x.tools||[]).length+' herramientas]';}).join(' · '));}catch(e){out.push('Conectores: error'+errTxt(e));}}
+  out.push('Calendar: '+cal.status+(cal.err?errTxt(cal.err):''));
+  out.push('Gmail: '+gm.status+(gm.err?errTxt(gm.err):''));
+  out.push('Clima: '+wx.status+(wx.err?errTxt(wx.err):''));
+  el.textContent=out.join('\n');
+}
 /* ---------- Google Calendar ---------- */
 var CAL_MSG={
   needs_reauth:'Volvé a conectar Google Calendar en Configuración → Conectores.',
@@ -900,7 +916,7 @@ function renderCalState(){
   if(cal.status==='error'){
     el.className='calstate err';
     var c=cal.err&&cal.err.code;
-    el.innerHTML='<span>'+esc(CAL_MSG[c]||('No se pudo leer Google Calendar'+(c?' ('+c+')':'')+'.'))+'</span><button class="btn sm" data-act="cal-reload">Reintentar</button>'+permBtn(c);return;}
+    el.innerHTML='<span>'+esc(CAL_MSG[c]||('No se pudo leer Google Calendar'+errTxt(cal.err)+'.'))+'</span><button class="btn sm" data-act="cal-reload">Reintentar</button>'+permBtn(c);return;}
   if(cal.status==='unavailable'){el.className='calstate';el.textContent='Google Calendar no está disponible en esta vista.';return;}
   el.className='calstate';
   el.innerHTML='<span>Calendar · '+new Date(cal.at).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit',hour12:false})+' h</span><button class="btn sm" data-act="cal-reload">Actualizar</button>';
