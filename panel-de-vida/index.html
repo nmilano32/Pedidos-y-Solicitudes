@@ -437,7 +437,9 @@ function fin(){return find('settings','finance')||{};}
 function finBase(){var f=Object.assign({},fin());delete f.id;return f;}
 function balNow(){var f=fin(),at=f.balanceAt||0,b=f.balance||0;S.moves.forEach(function(m){if((m.createdAt||0)>at)b+=(m.kind==='ingreso'?1:-1)*(m.amount||0);});return b;}
 function spentOn(s){var n=0;S.moves.forEach(function(m){if(m.kind!=='ingreso'&&m.date===s)n+=m.amount||0;});return n;}
-function nextPayDate(){var f=fin(),pd=f.payDay||1,t=now(),d=clampDay(t.getFullYear(),t.getMonth(),pd);if(d<=t)d=clampDay(t.getFullYear(),t.getMonth()+1,pd);return d;}
+function nthBiz(y,m,n){var d=new Date(y,m,1),c=0;for(var i=0;i<40;i++){var w=d.getDay();if(w!==0&&w!==6){c++;if(c>=n)return new Date(d);}d.setDate(d.getDate()+1);}return new Date(y,m,1);}
+function payDateOf(y,m){var f=fin(),n=f.payDay||1;return f.payMode==='habil'?nthBiz(y,m,Math.min(n,22)):clampDay(y,m,n);}
+function nextPayDate(){var f=fin(),t=now();if(f.payOverride){var o=parse(f.payOverride);if(o>t)return o;}var d=payDateOf(t.getFullYear(),t.getMonth());if(d<=t)d=payDateOf(t.getFullYear(),t.getMonth()+1);return d;}
 function commitments(until){var out=[];
   S.bills.forEach(function(b){if((b.currency||'ARS')!=='ARS')return;var d=billDue(b);if(d.date<until)out.push({title:b.name,amt:b.amount||0,date:d.date,kind:'bill'});});
   S.statements.forEach(function(s){if(s.paid||!s.due)return;var d=parse(s.due);if(d<until)out.push({title:s.card,amt:s.amount||0,date:d,kind:'card'});});
@@ -457,7 +459,7 @@ function projection(n){
   for(var i=0;i<n;i++){
     var first=new Date(y,mo+i,1),last=new Date(y,mo+i+1,0),dim=last.getDate(),net,parts;
     if(i===0){
-      var rem=diff(last,t),inM=(f.payDay||1)>t.getDate()?inc:0,com=commitments(new Date(y,mo+1,1)).reduce(function(a,x){return a+x.amt;},0),vr=ad*rem,sav=sv*rem/dim;
+      var rem=diff(last,t),pdThis=payDateOf(y,mo);if(f.payOverride){var ov=parse(f.payOverride);if(ov.getFullYear()===y&&ov.getMonth()===mo)pdThis=ov;}var inM=pdThis>t?inc:0,com=commitments(new Date(y,mo+1,1)).reduce(function(a,x){return a+x.amt;},0),vr=ad*rem,sav=sv*rem/dim;
       parts={income:inM,fixed:com,card:0,variable:vr,saving:sav};net=inM-com-vr-sav;
     }else{
       var stm=S.statements.filter(function(s){return !s.paid&&s.due&&ym(parse(s.due))===ym(first);}).reduce(function(a,s){return a+(s.amount||0);},0),cd=stm||cm,vr2=ad*dim;
@@ -583,7 +585,7 @@ function renderSaldo(){
   var sub=$('#saldosub');if(!sub)return;var f=fin();
   if(f.balanceAt==null){sub.textContent='Poné lo que tenés hoy entre cuentas y efectivo. Desde acá, cada gasto que cargues se descuenta solo y siempre sabés cuánto te queda.';return;}
   var inc=0,exp=0;S.moves.forEach(function(m){if((m.createdAt||0)>f.balanceAt){if(m.kind==='ingreso')inc+=m.amount||0;else exp+=m.amount||0;}});
-  sub.innerHTML='Hoy tenés <b class="num">'+fmt(balNow())+'</b>. Cargaste tu saldo el '+short(new Date(f.balanceAt))+'; desde entonces se descontaron '+fmt(exp)+' en gastos'+(inc?' y se sumaron '+fmt(inc)+' de ingresos':'')+'. Si no coincide con tu cuenta, actualizalo.';}
+  sub.innerHTML='Hoy tenés <b class="num">'+fmt(balNow())+'</b>. Cargaste tu saldo el '+short(new Date(f.balanceAt))+'; desde entonces se descontaron '+fmt(exp)+' en gastos'+(inc?' y se sumaron '+fmt(inc)+' de ingresos':'')+'. Si no coincide con tu cuenta, actualizalo.'+(f.income||f.payDay?' Próximo cobro: <b>'+nextPayDate().toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'})+'</b>.':'');}
 function renderDiary(){
   var el=$('#p-diario'),rc=$('#p-racha');if(!el)return;
   var list=S.days.slice().sort(function(a,b){return (b.date||'')<(a.date||'')?-1:1;}).slice(0,30);
@@ -1022,7 +1024,7 @@ var SCHEMA={
     {k:'prio',l:'Prioridad',t:'select',o:[['alta','Alta'],['media','Media'],['baja','Baja']]}]},
   projects:{label:'proyecto',defaults:{state:'activo'},fields:[{k:'name',l:'Nombre',t:'text',req:1},{k:'outcome',l:'¿Cómo se ve terminado?',t:'textarea'},{k:'state',l:'Estado',t:'select',o:[['activo','Activo'],['hecho','Hecho']]}]},
   moves:{label:'movimiento',defaults:{kind:'gasto',cat:'otros'},fields:[{k:'kind',l:'Tipo',t:'select',o:[['gasto','Gasto'],['ingreso','Ingreso']]},{k:'amount',l:'Monto',t:'number',req:1},{k:'desc',l:'Descripción',t:'text'},{k:'cat',l:'Categoría',t:'select',o:CATS},{k:'date',l:'Fecha',t:'date',req:1}]},
-  finance:{label:'finanzas',defaults:{},fields:[{k:'balance',l:'Saldo en pesos hoy',t:'number'},{k:'balanceUsd',l:'Saldo en dólares hoy',t:'number'},{k:'income',l:'Ingreso mensual en pesos',t:'number'},{k:'payDay',l:'Día del mes en que cobrás (1 a 31)',t:'number',min:1,max:31},{k:'saving',l:'Ahorro mensual que querés apartar',t:'number'}]},
+  finance:{label:'finanzas',defaults:{},fields:[{k:'balance',l:'Saldo en pesos hoy',t:'number'},{k:'balanceUsd',l:'Saldo en dólares hoy',t:'number'},{k:'income',l:'Ingreso mensual en pesos',t:'number'},{k:'payMode',l:'Cómo cobrás',t:'select',o:[['habil','En un día hábil del mes (lunes a viernes)'],['dia','En un día fijo del mes']]},{k:'payDay',l:'¿Qué día? (con día hábil: 4 = el 4.º día hábil)',t:'number',min:1,max:31},{k:'payOverride',l:'Fecha exacta del próximo cobro (opcional, por si hay feriados)',t:'date'},{k:'saving',l:'Ahorro mensual que querés apartar',t:'number'}]},
   habits:{label:'hábito',defaults:{days:{}},fields:[{k:'name',l:'Nombre del hábito',t:'text',req:1}]},
   statements:{label:'resumen de tarjeta',defaults:{paid:false},fields:[
     {k:'card',l:'Tarjeta (ej. Visa Galicia)',t:'text',req:1},{k:'closing',l:'Fecha de cierre',t:'date'},{k:'due',l:'Fecha de vencimiento',t:'date',req:1},
