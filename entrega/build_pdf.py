@@ -1,95 +1,115 @@
-import pathlib
+import pathlib, math
+from xml.sax.saxutils import escape
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
 from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Preformatted, Table, TableStyle, PageBreak, Flowable
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, Flowable
 root = pathlib.Path(__file__).resolve().parent.parent
 prompt = (root/"prompt/system-prompt.md").read_text()
 ss = getSampleStyleSheet()
 B = ParagraphStyle("b", parent=ss["BodyText"], fontSize=10.5, leading=15, spaceAfter=6)
-H1 = ParagraphStyle("h1", parent=ss["Heading1"], fontSize=16, spaceBefore=10, textColor=colors.HexColor("#1f4e79"))
-T = ParagraphStyle("t", parent=ss["Title"], fontSize=20)
-C = ParagraphStyle("c", parent=B, fontName="Courier", fontSize=8, leading=10.5)
+SM = ParagraphStyle("sm", parent=B, fontSize=9, leading=12, spaceAfter=0)
+H1 = ParagraphStyle("h1", parent=ss["Heading1"], fontSize=15, spaceBefore=10, textColor=colors.HexColor("#1f4e79"))
+T = ParagraphStyle("t", parent=ss["Title"], fontSize=20, spaceAfter=4)
+C = ParagraphStyle("c", parent=B, fontName="Courier", fontSize=8, leading=10.5, spaceAfter=0)
 def P(t): return Paragraph(t, B)
-def bullets(items): return [Paragraph("• "+i, B) for i in items]
+def bl(items): return [Paragraph("• "+i, B) for i in items]
+def tbl(rows, widths):
+    t = Table([[Paragraph(c, SM) for c in r] for r in rows], colWidths=widths, repeatRows=1)
+    t.setStyle(TableStyle([("GRID",(0,0),(-1,-1),0.5,colors.grey),("BACKGROUND",(0,0),(-1,0),colors.HexColor("#d9e2f3")),("VALIGN",(0,0),(-1,-1),"TOP")]))
+    return t
 
 class Flow(Flowable):
-    def __init__(s, w=17*cm, h=9.2*cm): super().__init__(); s.width=w; s.height=h
+    def __init__(s, h=9*cm): super().__init__(); s.width=17*cm; s.height=h
     def box(s,c,x,y,w,h,t,fill):
         c.setFillColor(fill); c.setStrokeColor(colors.HexColor("#444")); c.roundRect(x,y,w,h,5,fill=1)
-        c.setFillColor(colors.black); c.setFont("Helvetica",7.5)
-        for i,l in enumerate(t.split("\n")): c.drawCentredString(x+w/2,y+h/2+(len(t.split("\n"))-1)*4.5-i*9-2.5,l)
+        c.setFillColor(colors.black); c.setFont("Helvetica",7.5); ls=t.split("\n")
+        for i,l in enumerate(ls): c.drawCentredString(x+w/2,y+h/2+(len(ls)-1)*4.5-i*9-2.5,l)
     def arrow(s,c,x1,y1,x2,y2):
-        c.setStrokeColor(colors.HexColor("#444")); c.line(x1,y1,x2,y2)
-        import math; a=math.atan2(y2-y1,x2-x1)
-        for d in (2.6,-2.6): c.line(x2,y2,x2-6*math.cos(a-d*0.12),y2-6*math.sin(a-d*0.12))
+        c.setStrokeColor(colors.HexColor("#444")); c.line(x1,y1,x2,y2); a=math.atan2(y2-y1,x2-x1)
+        for d in (0.35,-0.35): c.line(x2,y2,x2-6*math.cos(a-d),y2-6*math.sin(a-d))
     def draw(s):
-        c=s.canv; g=colors.HexColor("#d9ead3"); bl=colors.HexColor("#cfe2f3"); o=colors.HexColor("#fce5cd")
-        c.setFont("Helvetica-Bold",9); c.drawString(0,s.height-10,"A) INGESTA (una vez)")
-        y=s.height-50; w=88;h=34
-        xs=[0,110,220,330]
-        for x,t,f in zip(xs,["Manual\nTrigger","Read File\nfaq.md","Splitter 500/80\n+ Data Loader","Supabase\nVector Store"],[g,g,bl,o]): s.box(c,x,y,w,h,t,f)
+        c=s.canv; g=colors.HexColor("#d9ead3"); b=colors.HexColor("#cfe2f3"); o=colors.HexColor("#fce5cd")
+        c.setFont("Helvetica-Bold",9); c.drawString(0,s.height-10,"A) INGESTA (una vez, o cuando cambia el manual)")
+        y=s.height-52; w=88; h=34; xs=[0,110,220,330]
+        for x,t,f in zip(xs,["Manual Trigger","Read File\nmanual-butaca.md","Splitter 500/80\n+ Data Loader","Supabase\nVector Store"],[g,g,b,o]): s.box(c,x,y,w,h,t,f)
         for i in range(3): s.arrow(c,xs[i]+w,y+h/2,xs[i+1],y+h/2)
-        s.box(c,330,y-45,w,30,"Embeddings Ollama\nnomic-embed-text",bl); s.arrow(c,374,y-15,374,y)
-        c.setFont("Helvetica-Bold",9); c.drawString(0,s.height-125,"B) AGENTE RAG (cada mensaje)")
-        y=s.height-170; xs=[0,100,200,300,400]
-        for x,t,f in zip(xs,["Webhook POST\n{numero,mensaje}","AI Agent\n(system prompt)","Respond to\nWebhook","",""],[g,o,g,colors.white,colors.white]):
-            if t: s.box(c,x,y,88,34,t,f)
-        s.arrow(c,88,y+17,100,y+17); s.arrow(c,188,y+17,200,y+17)
-        s.box(c,0,y-60,88,32,"Ollama\nllama3.1:8b",bl); s.box(c,100,y-60,88,32,"Memoria\nSession=numero",bl); s.box(c,200,y-60,100,32,"Tool retriever\nSupabase (top 4)",o)
-        s.box(c,200,y-105,100,30,"Embeddings Ollama\n(consulta)",bl)
-        for x in (44,144,250): s.arrow(c,x,y-28,min(max(x,110),170) if x==44 else x,y)
-        s.arrow(c,250,y-75,250,y-60)
-        c.setFont("Helvetica-Oblique",8); c.drawString(320,y-40,"Flujo: trigger -> AI Agent -> respuesta")
+        s.box(c,330,y-46,w,30,"Embeddings Ollama\nnomic-embed-text",b); s.arrow(c,374,y-16,374,y)
+        c.setFont("Helvetica-Bold",9); c.drawString(0,s.height-128,"B) AGENTE RAG (cada mensaje de WhatsApp)")
+        y=s.height-172; xs=[0,100,200,300]
+        for x,t,f in zip(xs,["Webhook POST\n{numero, mensaje}","AI Agent\n(system prompt)","Detectar\nderivación","Respond to\nWebhook"],[g,o,g,g]): s.box(c,x,y,88,34,t,f)
+        for x in xs[:3]: s.arrow(c,x+88,y+17,x+100,y+17)
+        s.box(c,0,y-62,88,32,"Ollama Chat\nllama3.1:8b",b); s.box(c,100,y-62,88,32,"Memoria\nSession = numero",b); s.box(c,200,y-62,100,32,"Tool retriever\nSupabase (top 4)",o)
+        s.arrow(c,44,y-30,120,y); s.arrow(c,144,y-30,144,y); s.arrow(c,230,y-30,168,y)
+        s.box(c,200,y-108,100,30,"Embeddings Ollama\n(consulta)",b); s.arrow(c,250,y-78,250,y-62)
 
 def shot(t):
     tb=Table([[Paragraph("<b>PEGAR AQUÍ LA CAPTURA</b><br/>"+t,B)]],colWidths=[16.5*cm],rowHeights=[6.5*cm])
     tb.setStyle(TableStyle([("BOX",(0,0),(-1,-1),1,colors.grey),("BACKGROUND",(0,0),(-1,-1),colors.HexColor("#f3f3f3")),("VALIGN",(0,0),(-1,-1),"MIDDLE"),("ALIGN",(0,0),(-1,-1),"CENTER")]))
     return tb
-
 def prompt_flow():
-    from xml.sax.saxutils import escape
     out=[]
     for l in prompt.replace("`","").split("\n"):
         if not l.strip(): out.append(Spacer(1,4)); continue
         if l.startswith("# "): out.append(Paragraph("<b>"+escape(l[2:])+"</b>",ParagraphStyle("ph",parent=C,fontName="Courier-Bold",fontSize=9,spaceBefore=4)))
         else: out.append(Paragraph(escape(l),ParagraphStyle("pl",parent=C,leftIndent=10,firstLineIndent=-10 if l.startswith("-") else 0)))
     return out
-s=[Paragraph("Pre-entregable: AI Agent con RAG",T),
- Paragraph("<b>Decisión de modelo (local vs. nube) + implementación en n8n</b><br/>Caso: Clínica Odontológica Sonrisa - asistente por WhatsApp",ParagraphStyle("st",parent=B,alignment=1)),
- Paragraph("1. Definición del caso de uso",H1),
- P("Clínica Sonrisa es un consultorio odontológico de barrio. El agente \"Sonri\" atiende por WhatsApp las preguntas frecuentes (horarios, valores de referencia, obras sociales, cuidados posteriores) y recopila los datos para pedir un turno, que luego confirma recepción. "
-   "Recibe mensajes cortos e informales, por ejemplo: \"¿hasta qué hora atienden el sábado?\", \"¿cuánto sale una limpieza?\", \"¿aceptan OSDE?\", \"quiero un turno para blanqueamiento\", y ocasionalmente urgencias (\"me duele mucho una muela\") que deben derivarse a una persona."),
+F="<font face='Courier'>%s</font>"
+
+s=[Paragraph("Pre entrega 4",T),
+ Paragraph("<b>AI Agent con RAG: primer filtro de consultas de la butaca comercial</b>",ParagraphStyle("st",parent=B,fontSize=12)),
+ Paragraph("Ejercicio pre-entregable · Nicolás Milano · 04/11/2026",ParagraphStyle("by",parent=B,textColor=colors.grey)),
+ Paragraph("1. Caso de uso",H1),
+ P("Continúa las pre entregas anteriores. A la butaca comercial de la financiera los clientes le escriben por WhatsApp con consultas que se repiten: ¿puedo sacar un crédito?, ¿cobraron mi cuota?, ¿me informan mi estado de cuenta?, ¿ya me liquidaron el préstamo? "
+   "El agente es el <b>primer filtro</b>: responde con el manual de la butaca lo que figura en él (requisitos, montos, plazo, circuito, estados, horarios) y deriva a un analista lo que depende del sistema, lo que implica una decisión de crédito o un reclamo. "
+   "Los mensajes son cortos e informales, de lunes a viernes de 8 a 18 h, y pueden incluir un DNI o un cliente molesto por un débito."),
  Paragraph("2. Decisión de infraestructura: modelo local (Ollama)",H1),
- P("<b>Elección:</b> modelo local con Ollama: <b>llama3.1:8b</b> para el chat y <b>nomic-embed-text</b> (768 dimensiones) para embeddings, con Supabase como Vector Store."),
- P("<b>Por qué llama3.1:8b:</b> con ~5 GB (cuantizado a 4 bits) corre en una PC con 8 GB de VRAM o incluso en CPU con 16 GB de RAM. Soporta español y llamadas a herramientas (necesario para que el AI Agent use el retriever). Para una FAQ con contexto recuperado de 4 fragmentos, un 8B alcanza; un 70B sería sobredimensionado.")]
-s+=bullets([
- "<b>Privacidad de datos:</b> en una clínica los mensajes pueden revelar síntomas, tratamientos y datos de obra social (datos de salud, sensibles según la Ley 25.326 de protección de datos personales). Con Ollama el texto del paciente y las consultas nunca salen de la infraestructura propia; con una API en la nube cada mensaje se enviaría a un tercero.",
- "<b>Costos operativos:</b> el costo es fijo (hardware y electricidad) y no crece por mensaje. En la nube se paga por token en cada consulta, y como el agente reenvía el system prompt, el historial y 4 fragmentos recuperados, cada mensaje consume miles de tokens. A volumen bajo-medio, el local sale más barato; la nube solo gana si el volumen es muy bajo o muy variable.",
- "<b>Latencia:</b> un 8B local responde en ~2-6 s en una GPU modesta, aceptable para WhatsApp, y no depende de la red ni de la cola del proveedor. La contrapartida es que la latencia crece si llegan varios mensajes a la vez (ver punto 6).",
- "<b>Independencia:</b> no depende de la disponibilidad, los cambios de precio ni la deprecación de modelos de un proveedor externo. Los embeddings también son locales, por lo que el índice vectorial no queda atado a una API."])
-s+=[Paragraph("<b>Trade-off asumido:</b> un modelo de 8B razona peor que uno grande de la nube, por eso se mitiga con un prompt estricto, temperatura baja (0.2) y respuestas basadas solo en el contexto recuperado.",B),
+ P("<b>Elección:</b> modelo local con Ollama. Chat: <b>llama3.1:8b</b>. Embeddings: <b>nomic-embed-text</b> (768 dimensiones). Vector Store: Supabase. "
+   "El 8B cuantizado ocupa unos 5 GB y corre con 16 GB de RAM (con GPU de 8 GB de VRAM responde más rápido). Soporta español y herramientas, que el AI Agent necesita para usar el retriever. Para un manual corto y preguntas acotadas alcanza; un modelo mayor sería sobredimensionado. Si el equipo tuviera menos de 16 GB de RAM, la alternativa es llama3.2:3b, con menor calidad de redacción.")]
+s+=bl([
+ "<b>Privacidad:</b> la butaca maneja información financiera de clientes: DNI, situación en el BCRA, estado de cuenta. Los mensajes de WhatsApp van a incluir DNI y datos de deudas, que son datos personales protegidos por la Ley 25.326, y la política de la butaca solo permite informar lo que corresponde al DNI consultado. Con Ollama, esos mensajes no salen de la infraestructura de la empresa; con una API en la nube cada consulta viajaría a un tercero.",
+ "<b>Costos operativos:</b> en la nube se paga por token, y el agente reenvía en cada mensaje el system prompt, el historial y los fragmentos recuperados, por lo que cada consulta consume bastantes tokens y el costo crece con cada cliente que escribe. El local tiene un costo fijo (equipo y electricidad) que no depende de la cantidad de mensajes.",
+ "<b>Latencia:</b> el objetivo es responder en unos 10 minutos como máximo. Un 8B local responde en unos segundos, sobradamente dentro de ese margen, sin depender de la red ni de la disponibilidad del proveedor.",
+ "<b>Independencia:</b> el servicio no depende de cambios de precio, límites de uso ni deprecación de modelos de un proveedor externo."])
+s+=[P("<b>Trade-off asumido:</b> un modelo de 8B razona peor que uno grande de la nube. Se compensa con un prompt estricto, temperatura baja (0,2) y la regla de que, si el manual no tiene el dato, el agente deriva a un analista en lugar de inventar."),
  PageBreak(),
  Paragraph("3. Pipeline de ingesta y recuperación",H1),
- P("Documento base: <font face='Courier'>base-conocimiento/faq-clinica-sonrisa.md</font>. Tabla <font face='Courier'>documents</font> en Supabase con columna <font face='Courier'>vector(768)</font> (script en <font face='Courier'>n8n/supabase-setup.sql</font>).")]
-s.append(Flow(h=8.6*cm))
-s+=[Spacer(1,6),P("<b>Pasos</b>")]
-s+=bullets([
- "<b>Ingesta (manual, una vez):</b> Manual Trigger → Read/Write Files from Disk (lee el .md) → Default Data Loader → Recursive Character Text Splitter (chunks de 500 caracteres, solapamiento de 80) → Embeddings Ollama (nomic-embed-text) → Supabase Vector Store en modo <i>Insert Documents</i>.",
- "<b>Recepción:</b> un nodo <b>Webhook</b> (POST <font face='Courier'>/webhook/mensaje-clinica</font>, respuesta \"Using Respond to Webhook Node\") recibe <font face='Courier'>{\"numero\":\"5491155550000\",\"mensaje\":\"...\"}</font> desde WhatsApp (Twilio/Meta) o un simulador.",
- "<b>Agente:</b> el AI Agent usa Ollama Chat Model (llama3.1:8b), Simple Memory con <b>Session ID = número del remitente</b> (<font face='Courier'>{{ $json.body.numero }}</font>, ventana de 6 mensajes) y el Supabase Vector Store en modo <i>Retrieve Documents (As Tool for AI Agent)</i> con top-K = 4 y el mismo modelo de embeddings para la consulta.",
- "<b>Respuesta:</b> un nodo <b>Respond to Webhook</b> devuelve <font face='Courier'>{numero, respuesta}</font> al sistema que envió el mensaje, que lo reenvía al paciente por WhatsApp.",
- "<b>Respuesta exclusivamente del contexto:</b> lo garantiza el system prompt (consulta obligatoria a la herramienta, prohibido inventar) más la baja temperatura."])
-s+=[Paragraph("4. System prompt del agente",H1),P("Incluye rol, tono para WhatsApp, información disponible, política de escalado a humano y límites claros."),*prompt_flow(),PageBreak(),
- Paragraph("Capturas del prototipo en n8n",H1),
- P("Completar con capturas reales del n8n local (importar <font face='Courier'>n8n/workflow-rag-clinica.json</font>, asignar credenciales de Ollama y Supabase)."),
- shot("Workflow completo: Webhook → AI Agent (Ollama, Memoria, Vector Store tool) → Respond to Webhook"),Spacer(1,8),
- shot("Ejecución exitosa con mensaje de prueba, por ejemplo: {\"numero\":\"5491155550000\",\"mensaje\":\"¿Hasta qué hora atienden el sábado?\"} y la respuesta del agente"),
+ P("Documento base: "+F%"manual-butaca-comercial.md"+" (productos, montos, plazo, requisitos, categorías, circuito, estados, horarios, privacidad; datos ficticios). Tabla "+F%"documents"+" en Supabase con columna "+F%"vector(768)"+".")]
+s+=[Flow(h=8.8*cm),Spacer(1,6)]
+s+=[P("<b>Qué entra y qué sale de cada nodo</b>"),
+ tbl([["Nodo","Entra","Sale"],
+  ["Manual Trigger","Clic en «Execute workflow» (una sola vez)","Un ítem vacío que dispara la lectura"],
+  ["Read/Write Files","Ruta del manual (.md)","El archivo como dato binario"],
+  ["Splitter + Data Loader","El texto del manual","Fragmentos de 500 caracteres con solapamiento de 80, con metadato «fuente»"],
+  ["Embeddings Ollama + Supabase","Cada fragmento","Un vector de 768 números por fragmento, guardado en la tabla "+F%"documents"],
+  ["Webhook","POST "+F%"/butaca-consulta"+" con "+F%'{"numero":"5491155550000","mensaje":"..."}',"El mismo dato dentro de "+F%"body"],
+  ["AI Agent","El mensaje, la memoria de esa sesión y el system prompt","Respuesta de texto breve, usando antes el retriever"],
+  ["Detectar derivación (Code)","Respuesta del agente y mensaje original","JSON con numero, respuesta, derivar (true/false) y prioridad (NORMAL/ALTA)"],
+  ["Respond to Webhook","El JSON anterior","Devuelve la respuesta al sistema que envió el mensaje"]],[4.3*cm,5.8*cm,6.9*cm]),
+ Spacer(1,8),P("<b>Recepción y envío:</b> el nodo <b>Webhook</b> recibe el mensaje del cliente (en producción lo enviaría la integración de WhatsApp; en la práctica se simula con una llamada POST) y el nodo <b>Respond to Webhook</b> devuelve la respuesta, que el sistema de mensajería reenvía al cliente. "
+   "<b>Memoria:</b> Simple Memory con <b>Session ID = número del remitente</b> ("+F%"{{ $json.body.numero }}"+"), ventana de 6 mensajes, para que el agente recuerde lo que ese mismo cliente ya dijo, por ejemplo su DNI. "
+   "<b>Prioridad:</b> el nodo Code marca prioridad ALTA con reglas fijas (palabras como «débito» o «reclamo») y no con el modelo, porque un cliente molesto por más de un débito es el caso más importante y no conviene depender de que un 8B lo detecte."),
+ Paragraph("4. Nodo del LLM conectado al retriever",H1),
+ P("El AI Agent usa Ollama Chat Model (llama3.1:8b, temperatura 0,2). El Supabase Vector Store está conectado como herramienta en modo <i>Retrieve Documents (As Tool for AI Agent)</i>, con top-K = 4 y el mismo modelo de embeddings (nomic-embed-text) que se usó en la ingesta; es obligatorio que sean el mismo. "
+   "El system prompt le ordena consultar siempre la herramienta antes de responder y no inventar si no encuentra nada, así que las respuestas se basan exclusivamente en el manual cargado."),
  PageBreak(),
- Paragraph("5. Reflexión de escalabilidad (x10 mensajes)",H1),
- P("La decisión se sostiene en privacidad, pero no sin cambios en infraestructura: un único Ollama con una GPU modesta procesa pocas solicitudes en paralelo, así que con 10x mensajes la latencia crecería por encolamiento. "
-   "Cambiaría: (1) una GPU dedicada o un segundo servidor Ollama con <font face='Courier'>OLLAMA_NUM_PARALLEL</font> y balanceo, y n8n en modo cola; (2) cachear respuestas de preguntas repetidas (horarios, precios) y resolver las más simples sin LLM; "
-   "(3) un esquema híbrido: el local para todo lo que contenga datos de pacientes y, solo para picos, un modelo en la nube con datos anonimizados. "
-   "El costo de hardware es un gasto fijo que se amortiza al crecer el volumen, mientras que en la nube el costo se multiplicaría por 10 junto con los tokens.")]
-SimpleDocTemplate(str(root/"entrega/Pre-entrega-RAG-Clinica-Sonrisa.pdf"),pagesize=A4,leftMargin=2*cm,rightMargin=2*cm,topMargin=2*cm,bottomMargin=2*cm,title="Pre-entregable AI Agent RAG").build(s)
+ Paragraph("5. System prompt del agente",H1),
+ P("Incluye rol, tono para WhatsApp, información disponible, política de escalado a un analista y límites claros (privacidad, sin promesas de aprobación).")]
+s+=prompt_flow()
+s+=[PageBreak(),Paragraph("6. Capturas del prototipo en n8n",H1),
+ P("Completar con capturas reales de n8n local (importar "+F%"n8n/workflow-rag-butaca.json"+" y asignar las credenciales de Ollama y Supabase)."),
+ shot("Workflow completo: Webhook → AI Agent (Ollama, Memoria, Vector Store) → Detectar derivación → Respond to Webhook"),Spacer(1,8),
+ shot("Ejecución exitosa con mensaje de prueba, p. ej. {\"numero\":\"5491155550000\",\"mensaje\":\"¿Qué requisitos necesito para un crédito?\"}, con la respuesta del agente"),
+ PageBreak(),
+ Paragraph("7. Reflexión: escalabilidad (x10 mensajes)",H1),
+ P("La decisión se sostiene en privacidad, pero la infraestructura local tendría que crecer: un solo Ollama atiende pocas consultas en paralelo, y con 10 veces más mensajes la demora crecería por encolamiento en los picos. "
+   "Cambiaría: (1) una GPU dedicada o un segundo servidor Ollama con balanceo y n8n en modo cola; (2) respuestas fijas o en caché para las preguntas más repetidas (requisitos, horarios), sin pasar por el modelo; "
+   "(3) un esquema híbrido, con el local para todo lo que lleve DNI o datos de cuenta y la nube solo para picos con mensajes anonimizados. "
+   "El hardware es un gasto fijo que se amortiza al crecer el volumen, mientras que en la nube el costo se multiplicaría junto con los tokens."),
+ Paragraph("8. Límites y mejora futura",H1)]
+s+=bl(["El agente <b>no tiene acceso al sistema</b>: no puede decir si se cobró una cuota ni informar un estado de cuenta; toma el DNI y deriva a un analista. Una mejora sería una herramienta que consulte el sistema solo por el DNI consultado.",
+ "La derivación hoy devuelve "+F%"derivar: true"+" en el JSON; en producción debería avisar a un analista (por Teams o mail).",
+ "Hoy WhatsApp no es viable con la app básica; en producción requiere WhatsApp Business con API.",
+ "Los datos del manual son ficticios y están armados a partir del proceso real de la butaca."])
+SimpleDocTemplate(str(root/"entrega/Pre-entrega-4-RAG-Butaca.pdf"),pagesize=A4,leftMargin=2*cm,rightMargin=2*cm,topMargin=2*cm,bottomMargin=2*cm,title="Pre entrega 4 - AI Agent con RAG").build(s)
