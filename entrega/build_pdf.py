@@ -33,7 +33,7 @@ class Flow(Flowable):
         c=s.canv; g=colors.HexColor("#d9ead3"); b=colors.HexColor("#cfe2f3"); o=colors.HexColor("#fce5cd")
         c.setFont("Helvetica-Bold",9); c.drawString(0,s.height-10,"A) INGESTA (una vez, o cuando cambia el manual)")
         y=s.height-52; w=88; h=34; xs=[0,110,220,330]
-        for x,t,f in zip(xs,["Manual Trigger","Read File\nmanual-butaca.md","Splitter 500/80\n+ Data Loader","Supabase\nVector Store"],[g,g,b,o]): s.box(c,x,y,w,h,t,f)
+        for x,t,f in zip(xs,["Manual Trigger","Code\ntexto del manual","Splitter 500/80\n+ Data Loader","Supabase\nVector Store"],[g,g,b,o]): s.box(c,x,y,w,h,t,f)
         for i in range(3): s.arrow(c,xs[i]+w,y+h/2,xs[i+1],y+h/2)
         s.box(c,330,y-46,w,30,"Embeddings Ollama\nnomic-embed-text",b); s.arrow(c,374,y-16,374,y)
         c.setFont("Helvetica-Bold",9); c.drawString(0,s.height-128,"B) AGENTE RAG (cada mensaje de WhatsApp)")
@@ -79,8 +79,8 @@ s+=[P("<b>Trade-off asumido:</b> un modelo de 8B razona peor que uno grande de l
 s+=[Flow(h=8.8*cm),Spacer(1,6)]
 s+=[P("<b>Qué entra y qué sale de cada nodo</b>"),
  tbl([["Nodo","Entra","Sale"],
-  ["Manual Trigger","Clic en «Execute workflow» (una sola vez)","Un ítem vacío que dispara la lectura"],
-  ["Read/Write Files","Ruta del manual (.md)","El archivo como dato binario"],
+  ["Manual Trigger","Clic en «Execute workflow» (una sola vez)","Un ítem vacío que dispara la carga"],
+  ["Code: texto del manual","Ejecución manual","Un ítem con el campo «texto» con el manual completo"],
   ["Splitter + Data Loader","El texto del manual","Fragmentos de 500 caracteres con solapamiento de 80, con metadato «fuente»"],
   ["Embeddings Ollama + Supabase","Cada fragmento","Un vector de 768 números por fragmento, guardado en la tabla "+F%"documents"],
   ["Webhook","POST "+F%"/butaca-consulta"+" con "+F%'{"numero":"5491155550000","mensaje":"..."}',"El mismo dato dentro de "+F%"body"],
