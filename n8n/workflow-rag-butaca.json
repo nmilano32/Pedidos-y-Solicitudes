@@ -11,7 +11,7 @@
         -120
       ],
       "parameters": {
-        "content": "## 1) INGESTA (se ejecuta una vez)\nArchivo -> splitter -> embeddings (nomic-embed-text) -> Supabase",
+        "content": "## 1) INGESTA (se ejecuta una vez)\nTexto del manual -> splitter -> embeddings (nomic-embed-text) -> Supabase",
         "width": 760,
         "height": 120
       }
@@ -29,16 +29,16 @@
     },
     {
       "id": "n3",
-      "name": "Read File: manual butaca",
-      "type": "n8n-nodes-base.readWriteFile",
-      "typeVersion": 1,
+      "name": "Code: texto del manual",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         0,
         60
       ],
       "parameters": {
-        "operation": "read",
-        "fileSelector": "/data/manual-butaca-comercial.md"
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{ json: { texto: \"# Manual de consultas - Butaca comercial\\n\\n(Documento de ejemplo con datos ficticios para la pr\\u00e1ctica.)\\n\\n## Qu\\u00e9 es la butaca comercial\\nLa butaca comercial es el equipo de la financiera que atiende a los clientes que ya operaron con la empresa y quieren un nuevo cr\\u00e9dito o un adelanto. Atiende de lunes a viernes de 8:00 a 18:00. Las consultas por WhatsApp se responden en un tiempo estimado de 10 minutos dentro de ese horario.\\n\\n## Productos\\nLa butaca ofrece dos productos:\\n- Cr\\u00e9dito: pr\\u00e9stamo personal.\\n- Adelanto: similar al cr\\u00e9dito pero con una condici\\u00f3n adicional (ver requisitos).\\n\\n## Montos y plazo\\nEl monto m\\u00ednimo es de $100.000 y el m\\u00e1ximo de $1.000.000. El plazo es de 12 cuotas. Las tasas y el valor de la cuota no se informan por este canal: los define el analista al preparar la oferta.\\n\\n## Requisitos para un cr\\u00e9dito\\n- Situaci\\u00f3n laboral: ANSES (jubilado, pensionado o beneficiario de ANSES).\\n- Hasta 2 deudas en el BCRA (Central de Deudores).\\nLa aprobaci\\u00f3n final siempre la define un analista.\\n\\n## Requisitos para un adelanto\\n- Los mismos que para un cr\\u00e9dito.\\n- No tener un cr\\u00e9dito activo con la financiera.\\n\\n## Categor\\u00edas de cliente\\nCada cliente tiene una categor\\u00eda: NUEVO, PLATA, ORO o PLATINO. A mejor categor\\u00eda, menos requisitos de documentaci\\u00f3n y verificaci\\u00f3n. Un cliente NUEVO pasa por la validaci\\u00f3n completa; un cliente PLATINO tiene un tr\\u00e1mite simplificado. La categor\\u00eda de un cliente en particular la ve el analista en el sistema y no se informa por este canal.\\n\\n## C\\u00f3mo es el tr\\u00e1mite\\n1. Ingresa la consulta del cliente.\\n2. Se carga la consulta en el sistema.\\n3. Un analista la revisa.\\n4. Si se aprueba: se informa la oferta al cliente, el cliente firma y se liquida el cr\\u00e9dito.\\n5. Si se rechaza: el caso queda cerrado como rechazado.\\nCada etapa del circuito demora aproximadamente 5 minutos de gesti\\u00f3n interna.\\n\\n## Estados de una consulta\\n- Pendiente: la consulta entr\\u00f3 y todav\\u00eda no se avanz\\u00f3.\\n- Contactado: ya se tom\\u00f3 la consulta y se contact\\u00f3 al cliente.\\n- Vendido: se le otorg\\u00f3 un cr\\u00e9dito al cliente.\\n- Rechazado: el cliente no cumple las condiciones.\\n- Revisar: la consulta est\\u00e1 pendiente de revisi\\u00f3n por un analista.\\n- Si una consulta pasa 24 horas sin respuesta del cliente, se considera sin contacto.\\n\\n## Consultas sobre la cuenta del cliente\\nPara saber si se cobr\\u00f3 una cuota, pedir el estado de cuenta o saber si ya se liquid\\u00f3 un pr\\u00e9stamo, un analista debe revisar el sistema. El asistente no tiene acceso al sistema: toma el DNI del cliente y lo deriva a un analista de la butaca. El analista solo brinda el estado de cuenta correspondiente al DNI consultado y nunca datos personales sensibles.\\n\\n## Reclamos y casos prioritarios\\nUn cliente molesto, o que reclama por m\\u00e1s de un d\\u00e9bito, es un caso de m\\u00e1xima prioridad: se deriva de inmediato a un analista de la butaca.\\n\\n## Privacidad\\nSolo se brinda informaci\\u00f3n del DNI consultado. Nunca se informan datos de otros clientes ni datos personales sensibles (domicilio, ingresos, datos bancarios).\\n\" } }];"
       }
     },
     {
@@ -64,7 +64,7 @@
       "credentials": {
         "supabaseApi": {
           "id": "supabase-cred",
-          "name": "Supabase"
+          "name": "Supabase account"
         }
       }
     },
@@ -83,7 +83,7 @@
       "credentials": {
         "ollamaApi": {
           "id": "ollama-local",
-          "name": "Ollama local"
+          "name": "Ollama account"
         }
       }
     },
@@ -97,7 +97,9 @@
         260
       ],
       "parameters": {
-        "dataType": "binary",
+        "dataType": "json",
+        "jsonMode": "expressionData",
+        "jsonData": "={{ $json.texto }}",
         "textSplittingMode": "custom",
         "options": {
           "metadata": {
@@ -191,7 +193,7 @@
       "credentials": {
         "ollamaApi": {
           "id": "ollama-local",
-          "name": "Ollama local"
+          "name": "Ollama account"
         }
       }
     },
@@ -236,7 +238,7 @@
       "credentials": {
         "supabaseApi": {
           "id": "supabase-cred",
-          "name": "Supabase"
+          "name": "Supabase account"
         }
       }
     },
@@ -255,7 +257,7 @@
       "credentials": {
         "ollamaApi": {
           "id": "ollama-local",
-          "name": "Ollama local"
+          "name": "Ollama account"
         }
       }
     },
@@ -294,14 +296,14 @@
       "main": [
         [
           {
-            "node": "Read File: manual butaca",
+            "node": "Code: texto del manual",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Read File: manual butaca": {
+    "Code: texto del manual": {
       "main": [
         [
           {

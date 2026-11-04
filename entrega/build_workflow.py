@@ -6,16 +6,16 @@ def n(id_, name, type_, v, pos, params, creds=None):
     d = {"id": id_, "name": name, "type": type_, "typeVersion": v, "position": pos, "parameters": params}
     if creds: d["credentials"] = creds
     return d
-ollama = {"ollamaApi": {"id": "ollama-local", "name": "Ollama local"}}
-supa = {"supabaseApi": {"id": "supabase-cred", "name": "Supabase"}}
+ollama = {"ollamaApi": {"id": "ollama-local", "name": "Ollama account"}}
+supa = {"supabaseApi": {"id": "supabase-cred", "name": "Supabase account"}}
 nodes = [
  # ---- Flujo 1: ingesta ----
- n("n1","Nota: ingesta","n8n-nodes-base.stickyNote",1,[-200,-120],{"content":"## 1) INGESTA (se ejecuta una vez)\nArchivo -> splitter -> embeddings (nomic-embed-text) -> Supabase","width":760,"height":120}),
+ n("n1","Nota: ingesta","n8n-nodes-base.stickyNote",1,[-200,-120],{"content":"## 1) INGESTA (se ejecuta una vez)\nTexto del manual -> splitter -> embeddings (nomic-embed-text) -> Supabase","width":760,"height":120}),
  n("n2","Manual: ejecutar ingesta","n8n-nodes-base.manualTrigger",1,[-200,60],{}),
- n("n3","Read File: manual butaca","n8n-nodes-base.readWriteFile",1,[0,60],{"operation":"read","fileSelector":"/data/manual-butaca-comercial.md"}),
+ n("n3","Code: texto del manual","n8n-nodes-base.code",2,[0,60],{"mode":"runOnceForAllItems","jsCode":"return [{ json: { texto: " + json.dumps((root/"base-conocimiento/manual-butaca-comercial.md").read_text()) + " } }];"}),
  n("n4","Supabase: guardar manual","%svectorStoreSupabase"%LC,1.1,[220,60],{"mode":"insert","tableName":{"__rl":True,"mode":"list","value":"documents"},"options":{"queryName":"match_documents"}},supa),
  n("n5","Embeddings Ollama: ingesta","%sembeddingsOllama"%LC,1,[180,260],{"model":"nomic-embed-text:latest"},ollama),
- n("n6","Data Loader: manual","%sdocumentDefaultDataLoader"%LC,1,[340,260],{"dataType":"binary","textSplittingMode":"custom","options":{"metadata":{"metadataValues":[{"name":"fuente","value":"manual-butaca-comercial"}]}}}),
+ n("n6","Data Loader: manual","%sdocumentDefaultDataLoader"%LC,1,[340,260],{"dataType":"json","jsonMode":"expressionData","jsonData":"={{ $json.texto }}","textSplittingMode":"custom","options":{"metadata":{"metadataValues":[{"name":"fuente","value":"manual-butaca-comercial"}]}}}),
  n("n7","Splitter: fragmentos","%stextSplitterRecursiveCharacterTextSplitter"%LC,1,[340,420],{"chunkSize":500,"chunkOverlap":80}),
  # ---- Flujo 2: agente ----
  n("n8","Nota: agente RAG","n8n-nodes-base.stickyNote",1,[-200,560],{"content":"## 2) AGENTE RAG\nWebhook -> AI Agent (Ollama + memoria por remitente + retriever Supabase) -> Detectar derivacion -> Respond to Webhook","width":1000,"height":120}),
@@ -31,8 +31,8 @@ nodes = [
 def main(a,b): return [{"node":a,"type":"main","index":0}]
 def ai(a,t): return [{"node":a,"type":t,"index":0}]
 conn = {
- "Manual: ejecutar ingesta":{"main":[main("Read File: manual butaca",0)[0:1]]},
- "Read File: manual butaca":{"main":[main("Supabase: guardar manual",0)[0:1]]},
+ "Manual: ejecutar ingesta":{"main":[main("Code: texto del manual",0)[0:1]]},
+ "Code: texto del manual":{"main":[main("Supabase: guardar manual",0)[0:1]]},
  "Embeddings Ollama: ingesta":{"ai_embedding":[ai("Supabase: guardar manual","ai_embedding")]},
  "Data Loader: manual":{"ai_document":[ai("Supabase: guardar manual","ai_document")]},
  "Splitter: fragmentos":{"ai_textSplitter":[ai("Data Loader: manual","ai_textSplitter")]},
