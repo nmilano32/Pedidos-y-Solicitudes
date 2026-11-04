@@ -20,11 +20,11 @@ nodes = [
  # ---- Flujo 2: agente ----
  n("n8","Nota: agente RAG","n8n-nodes-base.stickyNote",1,[-200,560],{"content":"## 2) AGENTE RAG\nWebhook -> AI Agent (Ollama + memoria por remitente + retriever Supabase) -> Detectar derivacion -> Respond to Webhook","width":1000,"height":120}),
  n("n9","Webhook: consulta nueva","n8n-nodes-base.webhook",2,[-200,760],{"httpMethod":"POST","path":"butaca-consulta","responseMode":"responseNode","options":{}}),
- n("n10","AI Agent: butaca","%sagent"%LC,1.7,[40,760],{"promptType":"define","text":"={{ $json.body.mensaje }}","options":{"systemMessage":prompt}}),
- n("n11","Ollama Chat Model: llama3.1","%slmChatOllama"%LC,1,[-20,980],{"model":"llama3.1:8b","options":{"temperature":0.2}},ollama),
- n("n12","Memoria: Session ID = remitente","%smemoryBufferWindow"%LC,1.3,[160,980],{"sessionIdType":"customKey","sessionKey":"={{ $('Webhook: consulta nueva').item.json.body.numero }}","contextWindowLength":6}),
- n("n13","Supabase: manual_butaca (retriever)","%svectorStoreSupabase"%LC,1.1,[340,980],{"mode":"retrieve-as-tool","toolName":"manual_butaca","toolDescription":"Devuelve información oficial del manual de la butaca comercial: productos, montos, plazo, requisitos, circuito, estados de una consulta y horarios. Usala siempre antes de responder.","tableName":{"__rl":True,"mode":"list","value":"documents"},"topK":4,"options":{"queryName":"match_documents"}},supa),
- n("n14","Embeddings Ollama: consulta","%sembeddingsOllama"%LC,1,[340,1160],{"model":"nomic-embed-text:latest"},ollama),
+ n("n10","AI Agent: responder consulta","%sagent"%LC,1.7,[40,760],{"promptType":"define","text":"={{ $json.body.mensaje }}","options":{"systemMessage":prompt}}),
+ n("n11","Ollama (modelo)","%slmChatOllama"%LC,1,[-20,980],{"model":"llama3.1:8b","options":{"temperature":0.2}},ollama),
+ n("n12","Memoria (Session ID = número)","%smemoryBufferWindow"%LC,1.3,[160,980],{"sessionIdType":"customKey","sessionKey":"={{ $('Webhook: consulta nueva').item.json.body.numero }}","contextWindowLength":6}),
+ n("n13","manual_butaca","%svectorStoreSupabase"%LC,1.1,[340,980],{"mode":"retrieve-as-tool","toolName":"manual_butaca","toolDescription":"Devuelve información oficial del manual de la butaca comercial: productos, montos, plazo, requisitos, circuito, estados de una consulta y horarios. Usala siempre antes de responder.","tableName":{"__rl":True,"mode":"list","value":"documents"},"topK":4,"options":{"queryName":"match_documents"}},supa),
+ n("n14","Embeddings Ollama (consulta)","%sembeddingsOllama"%LC,1,[340,1160],{"model":"nomic-embed-text:latest"},ollama),
  n("n16","Code: detectar derivación","n8n-nodes-base.code",2,[260,760],{"mode":"runOnceForEachItem","jsCode":"const out = $json.output || '';\nconst w = $('Webhook: consulta nueva').item.json.body;\nconst alta = /d[eé]bit|descont|reclam|estaf|denunci|defensa del consumidor|enojad|harto|inaceptable/i.test(w.mensaje || '');\nconst derivar = /analista de la butaca/i.test(out) || alta;\nreturn { json: { numero: w.numero, respuesta: out, derivar, prioridad: alta ? 'ALTA' : 'NORMAL' } };"}),
  n("n15","Responder: respuesta al cliente","n8n-nodes-base.respondToWebhook",1.1,[480,760],{"respondWith":"json","responseBody":"={{ $json }}","options":{}}),
 ]
@@ -36,13 +36,13 @@ conn = {
  "Embeddings Ollama: ingesta":{"ai_embedding":[ai("Supabase: guardar manual","ai_embedding")]},
  "Data Loader: manual":{"ai_document":[ai("Supabase: guardar manual","ai_document")]},
  "Splitter: fragmentos":{"ai_textSplitter":[ai("Data Loader: manual","ai_textSplitter")]},
- "Webhook: consulta nueva":{"main":[main("AI Agent: butaca",0)[0:1]]},
- "AI Agent: butaca":{"main":[main("Code: detectar derivación",0)[0:1]]},
+ "Webhook: consulta nueva":{"main":[main("AI Agent: responder consulta",0)[0:1]]},
+ "AI Agent: responder consulta":{"main":[main("Code: detectar derivación",0)[0:1]]},
  "Code: detectar derivación":{"main":[main("Responder: respuesta al cliente",0)[0:1]]},
- "Ollama Chat Model: llama3.1":{"ai_languageModel":[ai("AI Agent: butaca","ai_languageModel")]},
- "Memoria: Session ID = remitente":{"ai_memory":[ai("AI Agent: butaca","ai_memory")]},
- "Supabase: manual_butaca (retriever)":{"ai_tool":[ai("AI Agent: butaca","ai_tool")]},
- "Embeddings Ollama: consulta":{"ai_embedding":[ai("Supabase: manual_butaca (retriever)","ai_embedding")]},
+ "Ollama (modelo)":{"ai_languageModel":[ai("AI Agent: responder consulta","ai_languageModel")]},
+ "Memoria (Session ID = número)":{"ai_memory":[ai("AI Agent: responder consulta","ai_memory")]},
+ "manual_butaca":{"ai_tool":[ai("AI Agent: responder consulta","ai_tool")]},
+ "Embeddings Ollama (consulta)":{"ai_embedding":[ai("manual_butaca","ai_embedding")]},
 }
 wf = {"name":"RAG Butaca Comercial - Ollama + Supabase","nodes":nodes,"connections":conn,"settings":{"executionOrder":"v1","saveDataSuccessExecution":"all","saveManualExecutions":True,"timezone":"America/Argentina/Buenos_Aires"},"pinData":{}}
 (root/"n8n/workflow-rag-butaca.json").write_text(json.dumps(wf,indent=2,ensure_ascii=False))
