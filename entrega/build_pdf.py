@@ -101,21 +101,21 @@ doc = f'''<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Pre 
 <ul>
 <li><b>Trigger:</b> Webhook {code("POST /butaca-consulta")} que recibe {code('{"numero": "...", "mensaje": "..."}')} y simula la integración de WhatsApp.</li>
 <li><b>Mensajes que recibe:</b> cortos e informales, de lunes a viernes de 8 a 18 h. Pueden traer un DNI o a un cliente molesto por un débito.</li>
-<li><b>Modelo y datos:</b> Ollama local ({code("llama3.1:8b")} y {code("nomic-embed-text")}) y Supabase como Vector Store, con un manual de la butaca como documento base.</li>
+<li><b>Herramientas:</b> Ollama (el modelo de IA, que corre en mi propia compu) y Supabase (la base de datos donde se guarda el manual de la butaca, que es el documento base).</li>
 <li><b>Memoria:</b> Session ID = número del remitente.</li></ul>
 
 <h2>2. Decisión de infraestructura: modelo local (Ollama)</h2>
-<p><b>Elección:</b> modelo local con Ollama. Chat: {code("llama3.1:8b")}. Embeddings: {code("nomic-embed-text")} (768 dimensiones). Vector Store: Supabase.</p>
-<p>El 8B cuantizado ocupa unos 5 GB y corre en un equipo con 16 GB de RAM, que es el que se usó para este prototipo. Soporta español y herramientas, que el AI Agent necesita para usar el retriever. Para un manual corto y preguntas acotadas alcanza; un modelo mayor sería sobredimensionado. Si el equipo tuviera menos de 16 GB de RAM, la alternativa es {code("llama3.2:3b")}, con menor calidad de redacción.</p>
+<p><b>Elección:</b> modelo local con Ollama. Uso {code("llama3.1:8b")} para responder y {code("nomic-embed-text")} para convertir el texto del manual en números (embeddings), que es lo que permite buscar en él. El manual se guarda en Supabase.</p>
+<p>{code("llama3.1:8b")} es un modelo de 8 mil millones de parámetros, en una versión comprimida (cuantizada) que ocupa unos 5 GB y corre en un equipo con 16 GB de RAM, que es el que usé para este prototipo. Entiende español y puede usar herramientas, algo que el agente necesita para consultar el manual. Para un manual corto y preguntas acotadas alcanza; un modelo más grande sería innecesario. Con menos de 16 GB de RAM, la alternativa es {code("llama3.2:3b")}, que es más liviano pero redacta algo peor.</p>
 <ul>
-<li><b>Privacidad.</b> La butaca maneja información financiera de clientes: DNI, situación en el BCRA, estado de cuenta. Los mensajes de WhatsApp van a incluir DNI y datos de deudas, que son datos personales protegidos por la Ley 25.326, y la política de la butaca solo permite informar lo que corresponde al DNI consultado. Con Ollama esos mensajes no salen de la infraestructura de la empresa; con una API en la nube cada consulta viajaría a un tercero.</li>
-<li><b>Costos operativos.</b> En la nube se paga por token, y el agente reenvía en cada mensaje el system prompt, el historial y los fragmentos recuperados, por lo que cada consulta consume bastantes tokens y el costo crece con cada cliente que escribe. El local tiene un costo fijo (equipo y electricidad) que no depende de la cantidad de mensajes.</li>
-<li><b>Latencia.</b> El objetivo es responder en unos 10 minutos como máximo. En las pruebas del prototipo (equipo con 16 GB de RAM) la respuesta tardó entre 10 y 15 segundos, muy por debajo de ese margen y sin depender de la red ni de la disponibilidad del proveedor.</li>
-<li><b>Independencia.</b> El servicio no depende de cambios de precio, límites de uso ni deprecación de modelos de un proveedor externo.</li></ul>
-<p><b>Trade-off asumido:</b> un modelo de 8B razona peor que uno grande de la nube. Se compensa con un prompt estricto, temperatura baja (0,2) y la regla de que, si el manual no tiene el dato, el agente deriva a un analista en lugar de inventar.</p>
+<li><b>Privacidad.</b> La butaca maneja información financiera de clientes (DNI, deudas en el BCRA, estado de cuenta) y los mensajes de WhatsApp van a incluir esos datos. Son datos personales protegidos por la Ley 25.326, y la política de la butaca solo permite informar lo que corresponde al DNI consultado. Con Ollama los mensajes se procesan dentro de la empresa y no salen; con un modelo en la nube, cada consulta se enviaría a un tercero.</li>
+<li><b>Costos operativos.</b> En la nube se paga por cada mensaje procesado, y el agente envía en cada consulta sus instrucciones, el historial y los fragmentos del manual, así que el gasto crece con cada cliente que escribe. El modelo local tiene un costo fijo (el equipo y la electricidad) que no depende de cuántos mensajes lleguen.</li>
+<li><b>Latencia.</b> El objetivo es responder en unos 10 minutos como máximo. En las pruebas del prototipo (equipo con 16 GB de RAM) la respuesta tardó entre 10 y 15 segundos, muy por debajo de ese margen, y no depende de internet ni de que un proveedor esté disponible.</li>
+<li><b>Independencia.</b> El servicio no depende de cambios de precio, límites de uso ni de que un proveedor retire un modelo.</li></ul>
+<p><b>Trade-off asumido:</b> un modelo de 8B es menos capaz que los modelos grandes de la nube. Se compensa con instrucciones estrictas (el prompt), una temperatura baja (0,2, para que responda de forma más predecible) y la regla de que, si el manual no tiene el dato, el agente deriva a un analista en lugar de inventar.</p>
 
 <h2>3. Pipeline de ingesta y recuperación</h2>
-<p>Documento base: {code("manual-butaca-comercial.md")} (productos, montos, plazo, requisitos, categorías, circuito, estados, horarios y privacidad; datos ficticios). Se guarda en la tabla {code("documents")} de Supabase, con una columna {code("vector(768)")} para los embeddings.</p>
+<p>Documento base: {code("manual-butaca-comercial.md")} (productos, montos, plazo, requisitos, categorías, circuito, estados, horarios y privacidad; datos ficticios). Se guarda en la tabla {code("documents")} de Supabase, junto con un «vector» por fragmento: los números que representan su significado y que permiten encontrar el fragmento más parecido a una pregunta.</p>
 <h3>Flujo A · Ingesta (se ejecuta una vez)</h3>
 {svgA}
 <h3>Flujo B · Consulta (cada mensaje)</h3>
@@ -131,15 +131,15 @@ doc = f'''<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Pre 
 <tr><td>Manual: ejecutar ingesta</td><td>Clic en «Execute workflow» (una sola vez)</td><td>Un ítem vacío que dispara la carga</td></tr>
 <tr><td>Code: texto del manual</td><td>El ítem del disparador</td><td>Un ítem con el campo {code("texto")}: el manual completo</td></tr>
 <tr><td>Data Loader + Splitter</td><td>{code("{{ $json.texto }}")}</td><td>8 fragmentos de hasta 500 caracteres (solape de 80) con el metadato «fuente»</td></tr>
-<tr><td>Embeddings Ollama + Supabase</td><td>Cada fragmento</td><td>Un vector de 768 números por fragmento, guardado en {code("documents")}</td></tr>
+<tr><td>Embeddings Ollama + Supabase</td><td>Cada fragmento</td><td>Un vector (lista de 768 números) por fragmento, guardado en {code("documents")}</td></tr>
 <tr><td>Webhook: consulta nueva</td><td>POST con {code('{"numero":"5491155550000","mensaje":"..."}')}</td><td>El mismo dato dentro de {code("body")}, más headers y metadatos</td></tr>
 <tr><td>AI Agent: responder consulta</td><td>{code("{{ $json.body.mensaje }}")}, la memoria de esa sesión y el system prompt</td><td>Respuesta de texto, tras consultar {code("manual_butaca")}</td></tr>
 <tr><td>Code: detectar derivación</td><td>Respuesta del agente y mensaje original</td><td>JSON con numero, respuesta, derivar (true/false) y prioridad (NORMAL/ALTA)</td></tr>
 <tr><td>Responder: respuesta al cliente</td><td>El JSON anterior</td><td>Devuelve la respuesta al sistema que envió el mensaje</td></tr></table>
 <p><b>Recepción y envío:</b> el nodo <b>Webhook</b> recibe el mensaje del cliente (en producción lo enviaría la integración de WhatsApp; en la práctica se simula con una llamada POST) y el nodo <b>Respond to Webhook</b> devuelve la respuesta, que el sistema de mensajería reenvía al cliente.</p>
 <p><b>Memoria:</b> Simple Memory con <b>Session ID = número del remitente</b> ({code("{{ $json.body.numero }}")}) y una ventana de 6 mensajes, para que el agente recuerde lo que ese mismo cliente ya dijo, por ejemplo su DNI.</p>
-<p><b>Prioridad:</b> el nodo Code marca prioridad ALTA con reglas fijas (palabras como «débito» o «reclamo») y no con el modelo, porque un cliente molesto por más de un débito es el caso más importante y no conviene depender de que un 8B lo detecte.</p>
-<p><b>Carga del manual:</b> el texto del manual se incluye en un nodo Code en lugar de leer un archivo del disco, para que el flujo no dependa de rutas ni de permisos del equipo y se pueda importar en cualquier n8n.</p>
+<p><b>Prioridad:</b> el nodo Code marca prioridad ALTA con reglas fijas (palabras como «débito» o «reclamo») y no con el modelo, porque un cliente molesto por más de un débito es el caso más importante y no conviene depender de que un modelo chico lo detecte.</p>
+<p><b>Carga del manual:</b> el texto del manual está dentro de un nodo Code, en lugar de leerse desde un archivo, para que el flujo no dependa de carpetas ni de permisos de la compu y se pueda importar en cualquier n8n.</p>
 
 <h2>4. Nodo del LLM conectado al retriever</h2>
 <table><tr><th style="width:28%">Componente</th><th>Configuración</th></tr>
@@ -148,7 +148,7 @@ doc = f'''<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Pre 
 <tr><td>Retriever</td><td>Supabase Vector Store en modo <i>Retrieve Documents (As Tool for AI Agent)</i>, herramienta {code("manual_butaca")}, tabla {code("documents")}, límite 4</td></tr>
 <tr><td>Embeddings de consulta</td><td>Ollama {code("nomic-embed-text")}, el mismo modelo de la ingesta</td></tr>
 <tr><td>Texto de entrada</td><td>{code("{{ $json.body.mensaje }}")}</td></tr></table>
-<p>Es obligatorio usar el mismo modelo de embeddings en la ingesta y en la consulta; si no, los vectores no son comparables y las búsquedas no encuentran nada. El system prompt le ordena consultar siempre la herramienta antes de responder y no inventar si no encuentra nada, de modo que las respuestas se basan exclusivamente en el manual cargado.</p>
+<p>Hay que usar el mismo modelo de embeddings al cargar el manual y al consultarlo; si no, los números no se pueden comparar y la búsqueda no encuentra nada. El system prompt le ordena al agente consultar siempre la herramienta antes de responder y no inventar si no encuentra nada, de modo que las respuestas se basan solo en el manual cargado.</p>
 
 <h2>5. System prompt del agente</h2>
 <pre>{prompt_txt}</pre>
@@ -169,7 +169,7 @@ doc = f'''<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Pre 
 {fig("06-reclamo-respuesta.png","El agente deriva: «Te paso con un analista de la butaca». derivar = True, prioridad = ALTA.",62)}
 
 <h2>7. Reflexión: escalabilidad (x10 mensajes)</h2>
-<p>La decisión se sostiene en privacidad, pero la infraestructura local tendría que crecer: un solo Ollama atiende pocas consultas en paralelo y, con 10 veces más mensajes, la demora aumentaría por encolamiento en los picos. Cambiaría: (1) una GPU dedicada o un segundo servidor Ollama con balanceo y n8n en modo cola; (2) respuestas fijas o en caché para las preguntas más repetidas (requisitos, horarios), sin pasar por el modelo; (3) un esquema híbrido, con el local para todo lo que lleve DNI o datos de cuenta y la nube solo para picos con mensajes anonimizados. El hardware es un gasto fijo que se amortiza al crecer el volumen, mientras que en la nube el costo se multiplicaría junto con los tokens.</p>
+<p>La decisión se sostiene en privacidad, pero la infraestructura local tendría que crecer: un solo Ollama atiende pocas consultas a la vez y, con 10 veces más mensajes, las respuestas tardarían más en los momentos de mayor demanda porque quedarían en cola. Cambiaría: (1) sumar una placa de video (GPU) o un segundo servidor Ollama, y poner n8n en modo cola; (2) guardar las respuestas de las preguntas más repetidas (requisitos, horarios) para no pasar siempre por el modelo; (3) un esquema mixto, con el modelo local para todo lo que lleve DNI o datos de cuenta y la nube solo para los picos, con mensajes anonimizados. El equipo es un gasto fijo que se amortiza cuando crece el volumen, mientras que en la nube el costo se multiplicaría junto con la cantidad de mensajes.</p>
 
 <h2>8. Límites y mejora futura</h2>
 <ul>
