@@ -44,5 +44,5 @@ conn = {
  "manual_butaca":{"ai_tool":[ai("AI Agent","ai_tool")]},
  "Embeddings Ollama (consulta)":{"ai_embedding":[ai("manual_butaca","ai_embedding")]},
 }
-wf = {"name":"RAG Butaca Comercial - Ollama + Supabase","nodes":nodes,"connections":conn,"settings":{"executionOrder":"v1"},"pinData":{}}
+wf = {"name":"RAG Butaca Comercial - Ollama + Supabase","nodes":nodes,"connections":conn,"settings":{"executionOrder":"v1","saveDataSuccessExecution":"all","saveManualExecutions":True,"timezone":"America/Argentina/Buenos_Aires"},"pinData":{}}
 (root/"n8n/workflow-rag-butaca.json").write_text(json.dumps(wf,indent=2,ensure_ascii=False))

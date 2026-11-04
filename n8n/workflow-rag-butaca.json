@@ -424,7 +424,10 @@
     }
   },
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "timezone": "America/Argentina/Buenos_Aires"
   },
   "pinData": {}
 }
