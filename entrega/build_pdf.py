@@ -66,11 +66,11 @@ s=[Paragraph("Pre entrega 4",T),
    "Los mensajes son cortos e informales, de lunes a viernes de 8 a 18 h, y pueden incluir un DNI o un cliente molesto por un débito."),
  Paragraph("2. Decisión de infraestructura: modelo local (Ollama)",H1),
  P("<b>Elección:</b> modelo local con Ollama. Chat: <b>llama3.1:8b</b>. Embeddings: <b>nomic-embed-text</b> (768 dimensiones). Vector Store: Supabase. "
-   "El 8B cuantizado ocupa unos 5 GB y corre con 16 GB de RAM (con GPU de 8 GB de VRAM responde más rápido). Soporta español y herramientas, que el AI Agent necesita para usar el retriever. Para un manual corto y preguntas acotadas alcanza; un modelo mayor sería sobredimensionado. Si el equipo tuviera menos de 16 GB de RAM, la alternativa es llama3.2:3b, con menor calidad de redacción.")]
+   "El 8B cuantizado ocupa unos 5 GB y se recomienda un equipo con 16 GB de RAM o más (con GPU responde más rápido); en las pruebas de este prototipo corrió en el equipo local sin problemas. Soporta español y herramientas, que el AI Agent necesita para usar el retriever. Para un manual corto y preguntas acotadas alcanza; un modelo mayor sería sobredimensionado. Si el equipo tuviera menos de 16 GB de RAM, la alternativa es llama3.2:3b, con menor calidad de redacción.")]
 s+=bl([
  "<b>Privacidad:</b> la butaca maneja información financiera de clientes: DNI, situación en el BCRA, estado de cuenta. Los mensajes de WhatsApp van a incluir DNI y datos de deudas, que son datos personales protegidos por la Ley 25.326, y la política de la butaca solo permite informar lo que corresponde al DNI consultado. Con Ollama, esos mensajes no salen de la infraestructura de la empresa; con una API en la nube cada consulta viajaría a un tercero.",
  "<b>Costos operativos:</b> en la nube se paga por token, y el agente reenvía en cada mensaje el system prompt, el historial y los fragmentos recuperados, por lo que cada consulta consume bastantes tokens y el costo crece con cada cliente que escribe. El local tiene un costo fijo (equipo y electricidad) que no depende de la cantidad de mensajes.",
- "<b>Latencia:</b> el objetivo es responder en unos 10 minutos como máximo. Un 8B local responde en unos segundos, sobradamente dentro de ese margen, sin depender de la red ni de la disponibilidad del proveedor.",
+ "<b>Latencia:</b> el objetivo es responder en unos 10 minutos como máximo. Un 8B local genera la respuesta en el orden de segundos a un par de minutos según el equipo, dentro de ese margen, sin depender de la red ni de la disponibilidad del proveedor.",
  "<b>Independencia:</b> el servicio no depende de cambios de precio, límites de uso ni deprecación de modelos de un proveedor externo."])
 s+=[P("<b>Trade-off asumido:</b> un modelo de 8B razona peor que uno grande de la nube. Se compensa con un prompt estricto, temperatura baja (0,2) y la regla de que, si el manual no tiene el dato, el agente deriva a un analista en lugar de inventar."),
  PageBreak(),
@@ -97,10 +97,27 @@ s+=[P("<b>Qué entra y qué sale de cada nodo</b>"),
  Paragraph("5. System prompt del agente",H1),
  P("Incluye rol, tono para WhatsApp, información disponible, política de escalado a un analista y límites claros (privacidad, sin promesas de aprobación).")]
 s+=prompt_flow()
+from reportlab.platypus import Image, KeepTogether
+from PIL import Image as PILImage
+def pic(name, cap, w=15.5*cm):
+    path=str(root/"entrega/capturas"/name); iw,ih=PILImage.open(path).size
+    im=Image(path,width=w,height=w*ih/iw)
+    return KeepTogether([im,Paragraph("<i>"+cap+"</i>",ParagraphStyle("cap",parent=SM,textColor=colors.grey,spaceBefore=3,spaceAfter=10))])
 s+=[PageBreak(),Paragraph("6. Capturas del prototipo en n8n",H1),
- P("Completar con capturas reales de n8n local (importar "+F%"n8n/workflow-rag-butaca.json"+" y asignar las credenciales de Ollama y Supabase)."),
- shot("Workflow completo: Webhook → AI Agent (Ollama, Memoria, Vector Store) → Detectar derivación → Respond to Webhook"),Spacer(1,8),
- shot("Ejecución exitosa con mensaje de prueba, p. ej. {\"numero\":\"5491155550000\",\"mensaje\":\"¿Qué requisitos necesito para un crédito?\"}, con la respuesta del agente"),
+ P("Prototipo corriendo en n8n local (instalado con npm, Windows), con Ollama local (llama3.1:8b y nomic-embed-text) y Supabase como Vector Store."),
+ Paragraph("<b>6.1 Ingesta del manual</b>",B),
+ pic("01-ingesta-flujo.png","Flujo de ingesta ejecutado: el manual se divide en 8 fragmentos que se guardan en Supabase.",w=11.5*cm),
+ pic("02-supabase-tabla.png","Tabla documents en Supabase: 8 filas, cada una con el texto del fragmento, su metadato y su vector (embedding).",w=15.5*cm),
+ PageBreak(),
+ Paragraph("<b>6.2 Ejecución del agente: consulta de requisitos</b>",B),
+ P("Mensaje de prueba enviado al webhook: "+F%'{"numero":"5491155550000","mensaje":"¿Qué requisitos necesito para un crédito?"}'+". El Session ID de la memoria es el número del remitente."),
+ pic("03-agente-flujo.png","Flujo completo con ejecución exitosa: Webhook → AI Agent (Ollama, Memoria con Session ID = número, herramienta manual_butaca con 4 fragmentos recuperados) → Code → Respond to Webhook.",w=13.5*cm),
+ pic("04-agente-respuesta.png","Respuesta recibida: requisitos tomados del manual (ANSES, hasta 2 deudas en el BCRA, aprobación final del analista). derivar = False, prioridad = NORMAL.",w=14.5*cm),
+ PageBreak(),
+ Paragraph("<b>6.3 Ejecución del agente: reclamo (escalado a un analista)</b>",B),
+ P("Mensaje de prueba: «Me debitaron dos veces la cuota y estoy muy molesto». El reclamo por más de un débito es el caso de máxima prioridad."),
+ pic("05-reclamo-flujo.png","Flujo ejecutado con el mensaje de reclamo.",w=13.5*cm),
+ pic("06-reclamo-respuesta.png","El agente deriva: «Te paso con un analista de la butaca». derivar = True, prioridad = ALTA.",w=11*cm),
  PageBreak(),
  Paragraph("7. Reflexión: escalabilidad (x10 mensajes)",H1),
  P("La decisión se sostiene en privacidad, pero la infraestructura local tendría que crecer: un solo Ollama atiende pocas consultas en paralelo, y con 10 veces más mensajes la demora crecería por encolamiento en los picos. "
