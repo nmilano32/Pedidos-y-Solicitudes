@@ -115,11 +115,12 @@ node("AI Agent: decidir consulta", LC + "agent", 3.1, [20, 300], {
 node("Ollama (modelo)", LC + "lmChatOllama", 1, [-60, 560], {"model": "llama3.1:8b", "options": {"temperature": 0.1}}, OLLAMA)
 node("Memoria (Session ID = remitente)", LC + "memoryBufferWindow", 1.3, [100, 560],
      {"sessionIdType": "customKey", "sessionKey": "={{ $json.remitente }}", "contextWindowLength": 6})
-node("manual_butaca", LC + "vectorStoreSupabase", 1.1, [260, 560], {
+node("manual_butaca", LC + "vectorStoreSupabase", 1.1, [360, 640], {
     "mode": "retrieve-as-tool", "toolName": "manual_butaca",
     "toolDescription": "Devuelve fragmentos del manual de la butaca comercial de Argenpesos: productos, requisitos, montos, plazo, circuito, estados y horarios. Usala siempre antes de decidir.",
-    "tableName": {"__rl": True, "mode": "list", "value": "documents"}, "topK": 4, "options": {"queryName": "match_documents"}}, SUPA)
-node("Embeddings Ollama (consulta)", LC + "embeddingsOllama", 1, [260, 740], {"model": "nomic-embed-text:latest"}, OLLAMA)
+    "tableName": {"__rl": True, "mode": "list", "value": "documents"}, "topK": 4, "options": {"queryName": "match_documents"}}, SUPA,
+     onError="continueRegularOutput")  # si Supabase falla, el error vuelve al agente y este deriva
+node("Embeddings Ollama (consulta)", LC + "embeddingsOllama", 1, [360, 820], {"model": "nomic-embed-text:latest"}, OLLAMA)
 link("If: ¿mensaje válido?", "AI Agent: decidir consulta", out=0)
 link("Ollama (modelo)", "AI Agent: decidir consulta", kind="ai_languageModel")
 link("Memoria (Session ID = remitente)", "AI Agent: decidir consulta", kind="ai_memory")

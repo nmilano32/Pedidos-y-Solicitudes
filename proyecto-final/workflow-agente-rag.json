@@ -416,8 +416,8 @@
       "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
       "typeVersion": 1.1,
       "position": [
-        260,
-        560
+        360,
+        640
       ],
       "parameters": {
         "mode": "retrieve-as-tool",
@@ -438,7 +438,8 @@
           "id": "",
           "name": "Supabase account"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "id": "pf000000-0000-4000-8000-000000000021",
@@ -446,8 +447,8 @@
       "type": "@n8n/n8n-nodes-langchain.embeddingsOllama",
       "typeVersion": 1,
       "position": [
-        260,
-        740
+        360,
+        820
       ],
       "parameters": {
         "model": "nomic-embed-text:latest"
