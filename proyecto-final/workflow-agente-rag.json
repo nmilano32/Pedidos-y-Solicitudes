@@ -302,7 +302,7 @@
             {
               "id": "a2",
               "name": "mensaje",
-              "value": "={{ String($json.text ?? '').trim().slice(0, 3000) }}",
+              "value": "={{ String($json.text ?? '').replace(/\\[cid:[^\\]]*\\]/g, '').split(/\\n\\s*(?:--|saludos|atentamente|cordialmente|enviado desde|aviso de confidencialidad|confidencial|este mensaje|el presente)/i)[0].replace(/\\s+/g, ' ').trim().slice(0, 1500) }}",
               "type": "string"
             }
           ]

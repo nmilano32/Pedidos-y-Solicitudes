@@ -96,10 +96,15 @@ node("Edit Fields: normalizar WhatsApp", "n8n-nodes-base.set", 3.4, [-460, 260],
     ("canal", "WhatsApp", "string"),
     ("remitente", "={{ String($json.body.numero ?? '').replace(/\\D/g, '') }}", "string"),
     ("mensaje", "={{ String($json.body.mensaje ?? '').trim() }}", "string")]))
+# Limpia el cuerpo del mail: saca imágenes de la firma, corta desde la firma o el aviso legal y deja una sola línea.
+MAIL_LIMPIO = ("={{ String($json.text ?? '')"
+               ".replace(/\\[cid:[^\\]]*\\]/g, '')"
+               ".split(/\\n\\s*(?:--|saludos|atentamente|cordialmente|enviado desde|aviso de confidencialidad|confidencial|este mensaje|el presente)/i)[0]"
+               ".replace(/\\s+/g, ' ').trim().slice(0, 1500) }}")
 node("Edit Fields: normalizar mail", "n8n-nodes-base.set", 3.4, [-460, 460], assign([
     ("canal", "Mail", "string"),
     ("remitente", "={{ $json.from?.value?.[0]?.address ?? '' }}", "string"),
-    ("mensaje", "={{ String($json.text ?? '').trim().slice(0, 3000) }}", "string")]))
+    ("mensaje", MAIL_LIMPIO, "string")]))
 node("If: ¿mensaje válido?", "n8n-nodes-base.if", 2.2, [-220, 360],
      if_params(cond("={{ $json.mensaje }}", "notEmpty"), cond("={{ $json.remitente }}", "notEmpty")))
 link("Webhook: mensaje WhatsApp", "Edit Fields: normalizar WhatsApp")
